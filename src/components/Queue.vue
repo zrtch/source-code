@@ -2,7 +2,6 @@
 import Queue from 'yocto-queue'
 
 const queue = new Queue()
-debugger
 
 queue.enqueue('🦄')
 queue.enqueue('🌈')
