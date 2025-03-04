@@ -1,15 +1,11 @@
 <script setup lang="ts">
-import arrify from 'arrify'
-
-const arr = arrify('🦄')
-
-const arr1 = [1, 2, 3]
-const iterator = arr1[Symbol.iterator]()
-console.log('🤩  iterator:', iterator.next())
+import Arrify from './components/Arrify.vue'
+import Queue from './components/Queue.vue'
 </script>
 
 <template>
-  <div>{{ arr }}</div>
+  <Arrify />
+  <Queue />
 </template>
 
 <style scoped></style>

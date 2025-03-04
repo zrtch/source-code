@@ -14,6 +14,9 @@ importers:
       vue:
         specifier: ^3.5.13
         version: 3.5.13(typescript@5.7.3)
+      yocto-queue:
+        specifier: ^1.1.1
+        version: 1.1.1
     devDependencies:
       '@vitejs/plugin-vue':
         specifier: ^5.2.1
@@ -514,6 +517,10 @@ packages:
       typescript:
         optional: true
 
+  yocto-queue@1.1.1:
+    resolution: {integrity: sha512-b4JR1PFR10y1mKjhHY9LaGo6tmrgjit7hxVIeAmyMw3jegXR4dhYqLaQF5zMXZxY7tLpMyJeLjr1C4rLmkVe8g==}
+    engines: {node: '>=12.20'}
+
 snapshots:
 
   '@babel/helper-string-parser@7.25.9': {}
@@ -886,3 +893,5 @@ snapshots:
       '@vue/shared': 3.5.13
     optionalDependencies:
       typescript: 5.7.3
+
+  yocto-queue@1.1.1: {}

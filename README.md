@@ -97,3 +97,147 @@ export default function arrify(value) {
   内置对象（数组、字符串、Map、Set 等）
   自定义迭代器对象
   生成器函数返回的迭代器
+
+---
+
+## yocto-queue
+
+https://github.com/sindresorhus/yocto-queue
+
+### 队列实现原理
+
+这是一个基于链表实现的轻量级队列数据结构，采用现代 JavaScript 特性，具有高效的性能特点。
+
+### 核心实现
+
+1. 节点结构
+
+```javascript
+class Node {
+  value // 存储节点的值
+  next // 指向下一个节点的引用
+
+  constructor(value) {
+    this.value = value
+  }
+}
+```
+
+2. 队列类设计
+
+```javascript
+class Queue {
+  #head // 队列头部指针
+  #tail // 队列尾部指针
+  #size // 队列大小计数器
+}
+```
+
+### 关键方法实现
+
+1. 入队操作（enqueue）
+
+```javascript
+enqueue(value) {
+    const node = new Node(value);
+    if (this.#head) {
+        this.#tail.next = node;
+        this.#tail = node;
+    } else {
+        this.#head = node;
+        this.#tail = node;
+    }
+    this.#size++;
+}
+```
+
+2. 出队操作（dequeue）
+
+```javascript
+dequeue() {
+    const current = this.#head;
+    if (!current) {
+        return;
+    }
+    this.#head = this.#head.next;
+    this.#size--;
+    return current.value;
+}
+```
+
+3. 迭代器支持
+
+```javascript
+* [Symbol.iterator]() {const queue = new Queue();
+
+// 添加元素
+queue.enqueue('任务1');
+queue.enqueue('任务2');
+queue.enqueue('任务3');
+
+// 获取队列大小
+console.log(queue.size);  // 输出: 3
+
+// 查看队首元素
+console.log(queue.peek());  // 输出: '任务1'
+
+// 移除并返回队首元素
+console.log(queue.dequeue());  // 输出: '任务1'
+
+// 遍历队列
+for (const item of queue) {
+    console.log(item);  // 依次输出: '任务2', '任务3'
+}
+    let current = this.#head;
+    while (current) {
+        yield current.value;
+        current = current.next;
+    }
+}
+```
+
+4. 性能优化
+
+- 通过维护尾指针（#tail）避免每次入队时遍历整个链表
+- 所有核心操作（入队、出队）都是 O(1) 时间复杂度
+
+### 使用示例
+
+```ts
+const queue = new Queue()
+
+// 添加元素
+queue.enqueue('任务1')
+queue.enqueue('任务2')
+queue.enqueue('任务3')
+
+// 获取队列大小
+console.log(queue.size) // 输出: 3
+
+// 查看队首元素
+console.log(queue.peek()) // 输出: '任务1'
+
+// 移除并返回队首元素
+console.log(queue.dequeue()) // 输出: '任务1'
+
+// 遍历队列
+for (const item of queue) {
+  console.log(item) // 依次输出: '任务2', '任务3'
+}
+```
+
+### 应用场景
+
+1. 任务队列管理
+2. 事件处理系统
+3. 消息缓冲处理
+4. 广度优先搜索（BFS）
+5. 打印任务管理
+
+### 优势特点
+
+1. 使用私有字段（#）确保数据封装
+2. 支持迭代器接口，方便遍历
+3. 实现简洁，代码易于维护
+4. 性能优化，操作效率高
+5. 符合 FIFO（先进先出）原则
