@@ -623,12 +623,14 @@ console.log(looseIndexOf([{ a: 1 }], { a: 1 })) // 0
 
 ```js
 // 确保函数只执行一次
+// 初始化操作:确保某些初始化代码只执行一次,例如：配置项设置、资源加载等。
+// 防重复提交:表单提交按钮的点击处理。
 function once(fn) {
-  var called = false
+  var called = false // 闭包变量，用于记录函数是否已执行
   return function () {
     if (!called) {
-      called = true
-      fn.apply(this, arguments)
+      called = true // 标记为已调用
+      fn.apply(this, arguments) // 执行原函数
     }
   }
 }

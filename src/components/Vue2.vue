@@ -212,6 +212,31 @@ const gen = genStaticKeys([
   },
 ])
 console.log('🤩  gen:', gen) // a,b,c,d
+
+// 确保函数只执行一次,利用闭包特性，存储状态
+// 初始化操作 ：
+//    确保某些初始化代码只执行一次。例如：配置项设置、资源加载等
+// 事件绑定：
+//    防止重复绑定事件处理器
+// 防重复提交 ：
+// 表单提交按钮的点击处理
+function once(fn) {
+  var called = false // 闭包变量，用于记录函数是否已执行
+  return function () {
+    if (!called) {
+      called = true
+      fn.apply(this, arguments) // 执行原函数
+    }
+  }
+}
+
+const fn1 = once(function () {
+  console.log('无论你怎么调用，我只执行一次')
+})
+fn1() // '无论你怎么调用，我只执行一次'
+fn1() // 不输出
+fn1() // 不输出
+fn1() // 不输出
 </script>
 
 <template></template>
