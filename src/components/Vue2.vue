@@ -40,11 +40,12 @@ function isObject(obj) {
 console.log('🤩  isParmary  isParmary:', isObject({}))
 
 var _toString = Object.prototype.toString
-
-function toRowTyep(value) {
+function toRawType(value) {
   return _toString.call(value).slice(8, -1)
 }
-console.log('🤩  toRowTyep  toRowTyep:', toRowTyep(true))
+console.log(toRawType(true)) // 'Boolean'
+console.log(toRawType([])) // 'Array'
+console.log(toRawType({})) // 'Object'
 
 function isPlainObject(obj) {
   return _toString.call(obj) === '[object Object]'
@@ -93,7 +94,124 @@ function toNumber(val) {
   var n = parseFloat(val)
   return isNaN(n) ? val : n
 }
-console.log('🤩  toNumber  toNumber:', toNumber('123'))
+console.log(toNumber('123')) // 123
+console.log(toNumber('123px')) // '123px'
+
+function remove(arr, item) {
+  if (arr.length) {
+    var index = arr.indexOf(item)
+    if (index > -1) {
+      return arr.splice(index, 1)
+    }
+  }
+}
+const arr = [1, 2, 3, 4]
+remove(arr, 2)
+console.log('🤩  arr:', arr)
+
+var hasOwnProperty = Object.prototype.hasOwnProperty
+function hasOwn(obj, key) {
+  return hasOwnProperty.call(obj, key)
+}
+console.log(hasOwn({ a: 1 }, 'a')) // true
+console.log(hasOwn({ a: 1 }, 'toString')) // false
+
+// 创建一个带缓存的函数
+function cached(fn) {
+  // 创建一个空对象作为缓存容器，使用 Object.create(null) 创建的对象没有原型链，更纯净
+  var cache = Object.create(null)
+
+  // 返回一个新函数，这个函数包含缓存逻辑
+  return function cachedFn(str) {
+    // 检查缓存中是否已有结果
+    var hit = cache[str]
+    // 如果有缓存就返回缓存值，没有则执行函数并缓存结果
+    return hit || (cache[str] = fn(str))
+  }
+}
+
+// 创建一个耗时的函数
+function expensiveFunction(str) {
+  console.log('执行复杂计算...')
+  return str.toUpperCase()
+}
+// 创建带缓存的版本
+const cachedFn = cached(expensiveFunction)
+// 第一次调用，会执行函数
+console.log(cachedFn('hello')) // 输出：执行复杂计算... HELLO
+// 第二次调用相同参数，直接返回缓存结果
+console.log(cachedFn('hello')) // 输出：HELLO（不会显示"执行复杂计算"）
+// 不同参数会重新执行函数
+console.log(cachedFn('world')) // 输出：执行复杂计算... WORLD
+
+// 创建一个映射函数，用于快速查找
+function makeMap(str, expectsLowerCase) {
+  var map = Object.create(null)
+  var list = str.split(',')
+  for (var i = 0; i < list.length; i++) {
+    map[list[i]] = true
+  }
+  return expectsLowerCase
+    ? function (val) {
+        return map[val.toLowerCase()]
+      }
+    : function (val) {
+        return map[val]
+      }
+}
+var isBuiltInTag = makeMap('slot,component', true)
+console.log(isBuiltInTag('slot')) // true
+console.log(isBuiltInTag('div')) // undefined
+
+// 将类数组转换成数组
+function toArray(list, start) {
+  start = start || 0
+  var i = list.length - start
+  var ret = new Array(i)
+  while (i--) {
+    ret[i] = list[i + start]
+  }
+  return ret
+}
+console.log(toArray(['a', 'b', 'c'], 2)) // ['c']
+
+function extend(to, _from) {
+  for (var key in _from) {
+    to[key] = _from[key] // 将源对象的属性复制到目标对象
+  }
+  return to
+}
+console.log(extend({ a: 1 }, { b: 2, c: 3 })) // {a: 1, b: 2, c: 3}
+
+// 数组对象合并
+function toObject(arr) {
+  var res = {}
+  for (var i = 0; i <= arr.length; i++) {
+    if (arr[i]) {
+      extend(res, arr[i])
+    }
+  }
+  return res
+}
+console.log(toObject([{ a: 1 }, { b: 2 }]))
+
+// 生成静态键字符串
+function genStaticKeys(modules) {
+  return modules
+    .reduce(function (keys, m) {
+      return keys.concat(m.staticKeys || [])
+    }, [])
+    .join(',')
+}
+const gen = genStaticKeys([
+  {
+    staticKeys: ['a', 'b'],
+  },
+  {
+    staticKeys: ['c', 'd'],
+  },
+])
+console.log('🤩  gen:', gen) // a,b,c,d
 </script>
 
 <template></template>

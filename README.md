@@ -241,3 +241,402 @@ for (const item of queue) {
 3. 实现简洁，代码易于维护
 4. 性能优化，操作效率高
 5. 符合 FIFO（先进先出）原则
+
+## Vue2 源码方法
+
+https://github.com/vuejs/vue/blob/dev/dist/vue.js#L14-L379
+
+### 类型检查函数
+
+```js
+// 检查值是否为 undefined 或 null
+function isUndef(v) {
+  return v === null || v === undefined
+}
+console.log(isUndef(null)) // true
+console.log(isUndef(undefined)) // true
+console.log(isUndef(0)) // false
+
+// 检查值是否已定义（非 undefined 且非 null）
+function isDef(v) {
+  return v !== undefined && v !== null
+}
+console.log(isDef(123)) // true
+console.log(isDef('')) // true
+console.log(isDef(null)) // false
+
+// 检查值是否为 true
+function isTrue(v) {
+  return v === true
+}
+console.log(isTrue(true)) // true
+console.log(isTrue(1)) // false
+
+// 检查值是否为 false
+function isFalse(v) {
+  return v === false
+}
+console.log(isFalse(false)) // true
+console.log(isFalse(0)) // false
+
+// 检查值是否为原始类型（字符串、数字、布尔值或符号）
+function isPrimitive(v) {
+  return (
+    typeof v === 'string' ||
+    typeof v === 'number' ||
+    typeof v === 'boolean' ||
+    typeof v === 'symbol'
+  )
+}
+console.log(isPrimitive(123)) // true
+console.log(isPrimitive('hello')) // true
+console.log(isPrimitive({})) // false
+
+// 检查值是否为对象（不包括 null）
+function isObject(obj) {
+  return obj !== null && typeof obj === 'object'
+}
+console.log(isObject({})) // true
+console.log(isObject([])) // true
+console.log(isObject(null)) // false
+```
+
+### 类型转换与判断
+
+```js
+// 获取对象的原始类型字符串
+var _toString = Object.prototype.toString
+function toRawType(value) {
+  return _toString.call(value).slice(8, -1)
+}
+console.log(toRawType(true)) // 'Boolean'
+console.log(toRawType([])) // 'Array'
+console.log(toRawType({})) // 'Object'
+
+// 检查是否为普通对象
+function isPlainObject(obj) {
+  return _toString.call(obj) === '[object Object]'
+}
+console.log(isPlainObject({ name: 123 })) // true
+console.log(isPlainObject([])) // false
+
+// 检查是否为正则表达式
+function isRegExp(v) {
+  return _toString.call(v) === '[object RegExp]'
+}
+console.log(isRegExp(/^abc$/)) // true
+console.log(isRegExp('abc')) // false
+
+// 检查是否为有效的数组索引
+// n >= 0 ：确保值为非负数（因为数组索引不能为负）
+// Math.floor(n) === n ：确保值是整数（不能是小数）
+// isFinite(val) ：确保值是有限数（不能是 Infinity 或 NaN）
+function isValidArrayIndex(val) {
+  var n = parseFloat(String(val))
+  return n >= 0 && Math.floor(n) === n && isFinite(val)
+}
+console.log(isValidArrayIndex(3)) // true
+console.log(isValidArrayIndex('3')) // true
+console.log(isValidArrayIndex(-1)) // false
+console.log(isValidArrayIndex(3.5)) // false
+
+// 检查是否为 Promise 对象
+function isPromise(val) {
+  return (
+    isDef(val) &&
+    typeof val.then === 'function' &&
+    typeof val.catch === 'function'
+  )
+}
+console.log(isPromise(new Promise(() => {}))) // true
+console.log(isPromise({ then: () => {}, catch: () => {} })) // true
+console.log(isPromise({})) // false
+```
+
+### 值转换函数
+
+```js
+// 将值转换为字符串
+function toString(val) {
+  return val == null
+    ? ''
+    : Array.isArray(val) || (isPlainObject(val) && val.toString === _toString)
+    ? JSON.stringify(val, null, 2)
+    : String(val)
+}
+console.log(toString(null)) // ''
+console.log(toString([1, 2, 3])) // '[1,2,3]'
+console.log(toString(123)) // '123'
+
+// 将字符串转换为数字
+function toNumber(val) {
+  var n = parseFloat(val)
+  return isNaN(n) ? val : n
+}
+console.log(toNumber('123')) // 123
+console.log(toNumber('123px')) // '123px'
+```
+
+### 缓存与性能优化
+
+```js
+// 检查对象是否拥有自身属性
+// 缓存 hasOwnProperty 方法的引用:
+//   1. 提高性能：避免每次都查找原型链;
+//   2. 防止被覆盖：避免对象自身的 hasOwnProperty 属性干扰
+var hasOwnProperty = Object.prototype.hasOwnProperty
+function hasOwn(obj, key) {
+  // 确保方法在正确的上下文中执行
+  return hasOwnProperty.call(obj, key)
+}
+console.log(hasOwn({ a: 1 }, 'a')) // true
+console.log(hasOwn({ a: 1 }, 'toString')) // false
+
+// 创建一个带缓存的函数
+function cached(fn) {
+  // 创建一个空对象作为缓存容器，使用 Object.create(null) 创建的对象没有原型链，更纯净
+  var cache = Object.create(null)
+
+  // 返回一个新函数，这个函数包含缓存逻辑
+  return function cachedFn(str) {
+    // 检查缓存中是否已有结果
+    var hit = cache[str]
+    // 如果有缓存就返回缓存值，没有则执行函数并缓存结果
+    return hit || (cache[str] = fn(str))
+  }
+}
+
+// 将连字符分隔的字符串转为驼峰式
+var camelizeRE = /-(\w)/g
+var camelize = cached(function (str) {
+  return str.replace(camelizeRE, function (_, c) {
+    return c ? c.toUpperCase() : ''
+  })
+})
+console.log(camelize('some-prop')) // 'someProp'
+
+// 首字母大写
+var capitalize = cached(function (str) {
+  return str.charAt(0).toUpperCase() + str.slice(1)
+})
+console.log(capitalize('hello')) // 'Hello'
+
+// 将驼峰式转为连字符分隔
+var hyphenateRE = /\B([A-Z])/g
+var hyphenate = cached(function (str) {
+  return str.replace(hyphenateRE, '-$1').toLowerCase()
+})
+console.log(hyphenate('someProp')) // 'some-prop'
+```
+
+### 集合与映射操作`
+
+```js
+// 创建一个映射函数，用于快速查找
+function makeMap(str, expectsLowerCase) {
+  var map = Object.create(null)
+  var list = str.split(',')
+  for (var i = 0; i < list.length; i++) {
+    map[list[i]] = true
+  }
+  return expectsLowerCase
+    ? function (val) {
+        return map[val.toLowerCase()]
+      }
+    : function (val) {
+        return map[val]
+      }
+}
+var isBuiltInTag = makeMap('slot,component', true)
+console.log(isBuiltInTag('slot')) // true
+console.log(isBuiltInTag('SLOT')) // true
+console.log(isBuiltInTag('div')) // undefined
+
+// 从数组中移除指定项
+function remove(arr, item) {
+  if (arr.length) {
+    var index = arr.indexOf(item)
+    if (index > -1) {
+      return arr.splice(index, 1)
+    }
+  }
+}
+var arr = [1, 2, 3]
+remove(arr, 2)
+console.log(arr) // [1, 3]
+```
+
+### 函数操作与绑定
+
+```js
+// polyfill 版本的 bind 实现
+function polyfillBind(fn, ctx) {
+  function boundFn(a) {
+    var l = arguments.length
+    return l
+      ? l > 1
+        ? fn.apply(ctx, arguments)
+        : fn.call(ctx, a)
+      : fn.call(ctx)
+  }
+  boundFn._length = fn.length
+  return boundFn
+}
+
+// 原生 bind 方法
+function nativeBind(fn, ctx) {
+  return fn.bind(ctx)
+}
+
+// 根据环境选择 bind 实现
+var bind = Function.prototype.bind ? nativeBind : polyfillBind
+
+// 示例
+const obj = { name: 'test' }
+function greet() {
+  return this.name
+}
+const boundGreet = bind(greet, obj)
+console.log(boundGreet()) // 'test'
+```
+
+### 数组和对象操作
+
+```js
+// 将类数组转换为数组
+// 将函数的 arguments 对象（类数组）转换为真正的数组
+// 从DOM API返回的NodeList等类数组对象转换为数组
+// 截取数组的一部分并创建新数组
+function toArray(list, start) {
+  start = start || 0
+  var i = list.length - start
+  var ret = new Array(i)
+  while (i--) {
+    // 使用递减循环填充数组
+    ret[i] = list[i + start] // 从原数组的start位置开始复制元素
+  }
+  return ret
+}
+console.log(toArray(['a', 'b', 'c'], 1)) // ['b', 'c']
+
+// 对象合并:
+//  合并配置对象
+//  扩展默认选项
+//  混入(mixin)功能的实现
+//  组件选项的合并
+function extend(to, _from) {
+  for (var key in _from) {
+    to[key] = _from[key]
+  }
+  return to
+}
+console.log(extend({ a: 1 }, { b: 2 })) // { a: 1, b: 2 }
+
+// 数组对象合并
+function toObject(arr) {
+  var res = {}
+  for (var i = 0; i < arr.length; i++) {
+    if (arr[i]) {
+      extend(res, arr[i])
+    }
+  }
+  return res
+}
+console.log(toObject([{ a: 1 }, { b: 2 }])) // { a: 1, b: 2 }
+```
+
+### 工具函数
+
+```js
+// 空函数：在 Vue 中常用于默认的事件处理器、回调函数等
+function noop(a, b, c) {}
+
+// 始终返回 false 的函数：常用于平台特性检测的默认值、条件判断等场景
+var no = function (a, b, c) {
+  return false
+}
+
+// 返回原值的函数：用于默认的值处理器、映射函数等
+var identity = function (_) {
+  return _
+}
+
+// 生成静态键字符串
+function genStaticKeys(modules) {
+  return modules
+    .reduce(function (keys, m) {
+      return keys.concat(m.staticKeys || [])
+    }, [])
+    .join(',')
+}
+console.log(genStaticKeys([{ staticKeys: ['a', 'b'] }, { staticKeys: ['c'] }])) // 'a,b,c'
+```
+
+### 相等性判断
+
+```js
+// 松散相等判断
+function looseEqual(a, b) {
+  if (a === b) return true
+  var isObjectA = isObject(a)
+  var isObjectB = isObject(b)
+  if (isObjectA && isObjectB) {
+    try {
+      var isArrayA = Array.isArray(a)
+      var isArrayB = Array.isArray(b)
+      if (isArrayA && isArrayB) {
+        return a.length === b.length && a.every((e, i) => looseEqual(e, b[i]))
+      } else if (a instanceof Date && b instanceof Date) {
+        return a.getTime() === b.getTime()
+      } else if (!isArrayA && !isArrayB) {
+        var keysA = Object.keys(a)
+        var keysB = Object.keys(b)
+        return (
+          keysA.length === keysB.length &&
+          keysA.every((key) => looseEqual(a[key], b[key]))
+        )
+      }
+      return false
+    } catch (e) {
+      return false
+    }
+  } else if (!isObjectA && !isObjectB) {
+    return String(a) === String(b)
+  }
+  return false
+}
+
+// 松散索引查找
+function looseIndexOf(arr, val) {
+  for (var i = 0; i < arr.length; i++) {
+    if (looseEqual(arr[i], val)) return i
+  }
+  return -1
+}
+
+console.log(looseEqual([1, 2], [1, 2])) // true
+console.log(looseEqual({ a: 1 }, { a: 1 })) // true
+console.log(looseIndexOf([{ a: 1 }], { a: 1 })) // 0
+```
+
+### 函数执行控制
+
+```js
+// 确保函数只执行一次
+function once(fn) {
+  var called = false
+  return function () {
+    if (!called) {
+      called = true
+      fn.apply(this, arguments)
+    }
+  }
+}
+
+// 示例
+const onceLog = once(() => console.log('只打印一次'))
+onceLog() // '只打印一次'
+onceLog() // 无输出
+```
+
+这些工具函数展示了 Vue2 源码中优雅而实用的编程实践，它们不仅在 Vue 框架内部使用，也可以作为日常开发中的工具函数使用。每个函数都经过精心设计，确保了最大的实用性和性能。
