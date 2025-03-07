@@ -642,3 +642,91 @@ onceLog() // 无输出
 ```
 
 这些工具函数展示了 Vue2 源码中优雅而实用的编程实践，它们不仅在 Vue 框架内部使用，也可以作为日常开发中的工具函数使用。每个函数都经过精心设计，确保了最大的实用性和性能。
+
+## axios
+
+isBuffer 判断 buffer
+
+JavaScript 语言自身只有字符串数据类型，没有二进制数据类型。
+
+但在处理像 TCP 流或文件流时，必须使用到二进制数据。因此在 Node.js 中，定义了一个 Buffer 类，该类用来创建一个专门存放二进制数据的缓存区。详细可以看 官方文档 或 更通俗易懂的解释。
+
+```js
+// - 值不为 null
+// - 值已定义
+// - 值有构造函数
+// - 构造函数有 isBuffer 方法
+// - 通过构造函数的 isBuffer 方法判断
+function isBuffer(val) {
+  return (
+    val !== null &&
+    !isUndefined(val) &&
+    val.constructor !== null &&
+    !isUndefined(val.constructor) &&
+    typeof val.constructor.isBuffer === 'function' &&
+    val.constructor.isBuffer(val)
+  )
+}
+```
+
+### 特殊对象类型判断
+
+使用 Object.prototype.toString 方法来准确判断对象的具体类型。
+
+```js
+// 日期对象判断
+function isDate(val) {
+  return Object.prototype.toString.call(val) === '[object Date]'
+}
+
+// 文件对象判断
+function isFile(val) {
+  return Object.prototype.toString.call(val) === '[object File]'
+}
+
+// Blob 对象判断
+function isBlob(val) {
+  return Object.prototype.toString.call(val) === '[object Blob]'
+}
+
+// isFunction 判断函数
+function isFunction(val) {
+  return Object.prototype.toString.call(val) === '[object Function]'
+}
+
+// isStream 判断是否是流
+function isStream(val) {
+  return isObject(val) && isFunction(val.pipe)
+}
+```
+
+### URLSearchParams 判断
+
+```JS
+function isURLSearchParams(val) {
+  return (
+    typeof URLSearchParams !== 'undefined' && val instanceof URLSearchParams
+  )
+}
+
+// - 首先确保环境支持 URLSearchParams
+// - 然后使用 instanceof 判断实例
+
+const paramsString = 'q=URLUtils.searchParams&topic=api'
+const searchParams = new URLSearchParams(paramsString)
+isURLSearchParams(searchParams) // true
+```
+
+### 字符串处理
+
+- 优先使用原生的 trim 方法
+- 如果不支持，则降级使用正则表达式实现
+- 正则 /^\s+|\s+$/g 匹配开头和结尾的空白字符
+
+```js
+function trim(str) {
+  return str.trim ? str.trim() : str.replace(/^\s+|\s+$/g, '')
+}
+
+trim('       123 ') // '123'
+```
