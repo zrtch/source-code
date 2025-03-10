@@ -1,6 +1,22 @@
 <template></template>
 
 <script lang="ts">
+import to from 'await-to-js'
+const fn1 = () => {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      resolve('123')
+    }, 1000)
+  })
+}
+
+const getData = async () => {
+  const [err, data1] = await to(fn1())
+  if (err) throw err // 修复 error 拼写错误
+  console.log(data1)
+}
+getData()
+
 var toString = Object.prototype.toString
 
 function isArray(val) {

@@ -730,3 +730,47 @@ function trim(str) {
 
 trim('       123 ') // '123'
 ```
+
+## await-to-js
+
+异步任务处理的方法从最初的回调函数，逐渐发展成为了 Promise，async/await，以及 Generator 函数。每种方法都有其特点，例如 Promise 提供了错误捕获和链式调用，async/await 使得异步代码可以像同步代码一样编写，而 Generator 函数允许异步任务的暂停和恢复。
+
+await-to-js 库能够简化 async 函数中的错误处理，它通过 to 函数将 Promise 的结果和错误封装成数组返回，从而避免了繁琐的 try-catch 语句
+
+```ts
+export function to<T, U = Error>(
+  promise: Promise<T>, // 接收一个 Promise
+  errorExt?: object, // 可选的错误扩展对象
+): Promise<[U, undefined] | [null, T]> {
+  return promise
+    .then<[null, T]>((data: T) => [null, data]) // Promise 成功：返回 [null, 数据]
+    .catch<[U, undefined]>((err: U) => {
+      if (errorExt) {
+        // 如果提供了错误扩展对象，合并错误信息
+        const parsedError = Object.assign({}, err, errorExt)
+        return [parsedError, undefined] // Promise 失败：返回 [错误, undefined]
+      }
+
+      return [err, undefined]
+    })
+}
+
+export default to
+
+// 使用示例
+const [err, data] = await to(somePromise())
+if (err) {
+  // 处理错误
+  console.error(err)
+  return
+}
+// 使用成功的数据
+console.log(data)
+```
+
+优点：
+
+- 避免了 try-catch 的嵌套
+- 使错误处理更加优雅和统一
+- 提供了类似 Go 语言的错误处理模式
+- 支持自定义错误信息扩展
