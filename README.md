@@ -735,7 +735,9 @@ trim('       123 ') // '123'
 
 异步任务处理的方法从最初的回调函数，逐渐发展成为了 Promise，async/await，以及 Generator 函数。每种方法都有其特点，例如 Promise 提供了错误捕获和链式调用，async/await 使得异步代码可以像同步代码一样编写，而 Generator 函数允许异步任务的暂停和恢复。
 
-await-to-js 库能够简化 async 函数中的错误处理，它通过 to 函数将 Promise 的结果和错误封装成数组返回，从而避免了繁琐的 try-catch 语句
+await-to-js 库能够简化 async 函数中的错误处理，它通过 to 函数将 Promise 的结果和错误封装成数组返回，从而避免了繁琐的 try-catch 语句。
+
+可以显著提高代码的可读性和简洁性，特别是在处理多个异步操作时，它能够有效地减少代码量，使错误处理更加直观。
 
 ```ts
 export function to<T, U = Error>(
@@ -774,3 +776,170 @@ console.log(data)
 - 使错误处理更加优雅和统一
 - 提供了类似 Go 语言的错误处理模式
 - 支持自定义错误信息扩展
+
+## promisify
+
+[utils promisify 文档](https://nodejs.cn/api/util/util_promisify_original.html)。
+
+1. promisify 是一种将回调函数转换为返回 Promise 的技术，可以有效解决回调地狱的问题。
+2. Node.js 的 util.promisify 方法是对 callback promisify 化实现的抽象，它简化了异步代码的编写，并提高了代码的可读性和可维护性。
+3. 通过对 Node.js 源码的分析，可以更深入地理解 promisify 的实现原理，包括错误处理、异步执行流程和适应不同回调模式的能力。
+4. 使用 promisify 后的代码更加清晰，易于理解和维护，同时也能够更好地利用 async/await 语法糖，进一步简化异步代码的结构。
+
+```js
+const kCustomPromisifiedSymbol = SymbolFor('nodejs.util.promisify.custom')
+const kCustomPromisifyArgsSymbol = Symbol('customPromisifyArgs')
+
+let validateFunction
+
+function promisify(original) {
+  // Lazy-load to avoid a circular dependency.
+  if (validateFunction === undefined)
+    ({ validateFunction } = require('internal/validators'))
+
+  validateFunction(original, 'original')
+
+  if (original[kCustomPromisifiedSymbol]) {
+    const fn = original[kCustomPromisifiedSymbol]
+
+    validateFunction(fn, 'util.promisify.custom')
+
+    return ObjectDefineProperty(fn, kCustomPromisifiedSymbol, {
+      value: fn,
+      enumerable: false,
+      writable: false,
+      configurable: true,
+    })
+  }
+
+  // Names to create an object from in case the callback receives multiple
+  // arguments, e.g. ['bytesRead', 'buffer'] for fs.read.
+  const argumentNames = original[kCustomPromisifyArgsSymbol]
+
+  function fn(...args) {
+    return new Promise((resolve, reject) => {
+      ArrayPrototypePush(args, (err, ...values) => {
+        if (err) {
+          return reject(err)
+        }
+        if (argumentNames !== undefined && values.length > 1) {
+          const obj = {}
+          for (let i = 0; i < argumentNames.length; i++)
+            obj[argumentNames[i]] = values[i]
+          resolve(obj)
+        } else {
+          resolve(values[0])
+        }
+      })
+      ReflectApply(original, this, args)
+    })
+  }
+
+  ObjectSetPrototypeOf(fn, ObjectGetPrototypeOf(original))
+
+  ObjectDefineProperty(fn, kCustomPromisifiedSymbol, {
+    value: fn,
+    enumerable: false,
+    writable: false,
+    configurable: true,
+  })
+  return ObjectDefineProperties(fn, ObjectGetOwnPropertyDescriptors(original))
+}
+
+promisify.custom = kCustomPromisifiedSymbol
+```
+
+```js
+import { promisify } from 'node:util'
+import childProcess from 'node:child_process'
+
+const execFile = promisify(childProcess.execFile) // 将 execFile 转换为 Promise 形式
+
+export default async function remoteGitTags(repoUrl) {
+  // 执行 git ls-remote --tags 命令获取远程仓库的标签信息
+  const { stdout } = await execFile('git', ['ls-remote', '--tags', repoUrl])
+  const tags = new Map() // 创建 Map 存储标签信息
+
+  // 处理命令输出
+  for (const line of stdout.trim().split('\n')) {
+    const [hash, tagReference] = line.split('\t') // 分割哈希值和标签引用
+
+    // 处理标签名称：
+    // 1. 移除 "refs/tags/" 前缀
+    // 2. 移除 "^{}" 后缀（用于标识标签对象）
+    const tagName = tagReference
+      .replace(/^refs\/tags\//, '')
+      .replace(/\^{}$/, '')
+
+    tags.set(tagName, hash) // 存储标签名和对应的提交哈希
+  }
+
+  return tags // 返回标签映射
+}
+
+// 使用示例
+const tags = await remoteGitTags('https://github.com/user/repo.git')
+console.log(tags) // Map { 'v1.0.0' => 'abcd123...', 'v2.0.0' => 'efgh456...' }
+```
+
+## underscore 防抖
+
+防抖的原理就是：你尽管触发事件，但是我一定在事件触发 n 秒后才执行，如果你在一个事件触发的 n 秒内又触发了这个事件，那我就以新的事件的时间为准，n 秒后才执行，总之，就是要等你触发完事件 n 秒内不再触发事件，我才执行，真是任性呐!
+
+```js
+import restArguments from './restArguments.js'
+import now from './now.js'
+
+// func : 需要防抖的函数
+// wait : 等待时间（毫秒）
+// immediate : 是否在触发开始时立即执行
+export default function debounce(func, wait, immediate) {
+  var timeout, previous, args, result, context
+
+  // 延迟执行处理
+  var later = function () {
+    var passed = now() - previous // 计算经过的时间
+    if (wait > passed) {
+      // 如果还没到等待时间
+      timeout = setTimeout(later, wait - passed) // 继续等待
+    } else {
+      timeout = null
+      if (!immediate) result = func.apply(context, args) // 非立即执行模式下调用函数
+      if (!timeout) args = context = null // 清理引用
+    }
+  }
+
+  var debounced = restArguments(function (_args) {
+    context = this
+    args = _args
+    previous = now()
+    if (!timeout) {
+      // 首次调用
+      timeout = setTimeout(later, wait)
+      if (immediate) result = func.apply(context, args) // 立即执行模式
+    }
+    return result
+  })
+
+  debounced.cancel = function () {
+    clearTimeout(timeout)
+    timeout = args = context = null
+  }
+
+  return debounced
+}
+```
+
+工作原理：
+
+1. 当函数被频繁调用时，每次调用都会重置定时器
+2. 只有在停止调用后的 wait 毫秒才会执行函数
+3. 如果设置了 immediate，则首次调用会立即执行
+4. 提供 cancel 方法可以取消待执行的函数
+
+使用场景：
+
+- 搜索框输入联想
+- 窗口大小调整
+- 按钮快速点击
+- 表单验证
