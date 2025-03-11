@@ -1150,7 +1150,7 @@ function validateConcurrency(concurrency) {
 
 工作流程：
 
-![123](https://www.mermaidchart.com/raw/322e2898-9fd7-4370-8d3b-39ca955c0254?theme=light&version=v0.1&format=svg)
+![plimit](./public/plimit.png)
 
 设计亮点：
 
@@ -1161,4 +1161,5 @@ function validateConcurrency(concurrency) {
 - 错误隔离 ：一个任务的失败不会影响其他任务的执行
 
 [Node.js 并发能力总结](https://mp.weixin.qq.com/s/6LsPMIHdIOw3KO6F2sgRXg)
+
 [关于请求并发控制的思考](https://juejin.cn/post/7045274658798567454)
