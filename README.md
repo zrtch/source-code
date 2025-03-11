@@ -943,3 +943,86 @@ export default function debounce(func, wait, immediate) {
 - 窗口大小调整
 - 按钮快速点击
 - 表单验证
+
+## mitt、tiny-emitter 发布订阅
+
+在 mitt 这个库中，整体分析起来比较简单，就是 导出了一个 mitt([all])函数，调用该函数返回一个 emitter 对象，该对象包含 all、on(type, handler)、off(type, [handler])和 emit(type, [evt])这几个属性。
+主要实现就是：
+
+all = all || new Map() mitt 支持传入 all 参数用来存储事件类型和事件处理函数的映射 Map，如果不传，就 new Map()赋值给 all
+on(type, handler)定义函数 on 来注册事件，以 type 为属性，[handler]为属性值，存储在 all 中，属性值为数组的原因是可能存在监听一个事件，多个处理程序
+off(type, [handler])来取消某个事件的某个处理函数，根据 type 找到对应的事件处理数组，对比 handler 是否相等，相等则删除该处理函数，不传则删除该事件的全部处理函数
+emit(type, [evt])来派发事件，根据 type 找到对应的事件处理数组并依次执行，传入参数 evt(对象最好，传多个参数只会取到第一个)
+
+```ts
+export default function mitt<Events extends Record<EventType, unknown>>(
+  all?: EventHandlerMap<Events>,
+): Emitter<Events> {
+  type GenericEventHandler =
+    | Handler<Events[keyof Events]>
+    | WildcardHandler<Events>
+  // 初始化事件存储 Map
+  all = all || new Map()
+  // 返回事件发射器对象
+  return {
+    all,
+
+    // on 方法 - 注册事件监听器
+    on<Key extends keyof Events>(type: Key, handler: GenericEventHandler) {
+      const handlers: Array<GenericEventHandler> | undefined = all!.get(type)
+      if (handlers) {
+        handlers.push(handler) // 已有该事件类型，直接添加处理器
+      } else {
+        all!.set(type, [handler] as EventHandlerList<Events[keyof Events]>) // 首次注册该事件类型
+      }
+    },
+
+    // off 方法 - 移除事件监听器
+    off<Key extends keyof Events>(type: Key, handler?: GenericEventHandler) {
+      const handlers: Array<GenericEventHandler> | undefined = all!.get(type)
+      if (handlers) {
+        if (handler) {
+          // 移除特定处理器
+          handlers.splice(handlers.indexOf(handler) >>> 0, 1)
+        } else {
+          // 移除该类型的所有处理器
+          all!.set(type, [])
+        }
+      }
+    },
+
+    // emit 方法 - 触发事件
+    emit<Key extends keyof Events>(type: Key, evt?: Events[Key]) {
+      // 触发特定类型的处理器
+      let handlers = all!.get(type)
+
+      if (handlers) {
+        ;(handlers as EventHandlerList<Events[keyof Events]>)
+          .slice() // 使用 .slice() 创建处理器数组的副本，避免在遍历过程中修改数组导致问题
+          .map((handler) => {
+            handler(evt!)
+          })
+      }
+
+      // 触发通配符 '*' 处理器
+      handlers = all!.get('*')
+      if (handlers) {
+        ;(handlers as WildCardEventHandlerList<Events>)
+          .slice()
+          .map((handler) => {
+            handler(type, evt!)
+          })
+      }
+    },
+  }
+}
+```
+
+设计亮点：
+
+- 极简设计 ：整个库只有三个核心方法，API 简洁明了
+- 类型安全 ：利用 TypeScript 泛型提供完整的类型推导和检查
+- 通配符支持 ：可以使用 \* 监听所有事件
+- 零依赖 ：不依赖任何外部库
+- 小巧高效 ：压缩后仅约 200 字节
+- 防御性编程 ：使用 .slice() 复制数组，避免在触发事件时修改处理器列表导致的问题
