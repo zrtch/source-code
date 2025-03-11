@@ -645,11 +645,9 @@ onceLog() // 无输出
 
 ## axios
 
-isBuffer 判断 buffer
+https://github.com/axios/axios/blob/v1.x/lib/utils.js
 
-JavaScript 语言自身只有字符串数据类型，没有二进制数据类型。
-
-但在处理像 TCP 流或文件流时，必须使用到二进制数据。因此在 Node.js 中，定义了一个 Buffer 类，该类用来创建一个专门存放二进制数据的缓存区。详细可以看 官方文档 或 更通俗易懂的解释。
+### 特殊对象类型判断
 
 ```js
 // - 值不为 null
@@ -668,8 +666,6 @@ function isBuffer(val) {
   )
 }
 ```
-
-### 特殊对象类型判断
 
 使用 Object.prototype.toString 方法来准确判断对象的具体类型。
 
@@ -732,6 +728,8 @@ trim('       123 ') // '123'
 ```
 
 ## await-to-js
+
+https://github.com/scopsy/await-to-js/blob/master/src/await-to-js.ts
 
 异步任务处理的方法从最初的回调函数，逐渐发展成为了 Promise，async/await，以及 Generator 函数。每种方法都有其特点，例如 Promise 提供了错误捕获和链式调用，async/await 使得异步代码可以像同步代码一样编写，而 Generator 函数允许异步任务的暂停和恢复。
 
@@ -884,6 +882,8 @@ console.log(tags) // Map { 'v1.0.0' => 'abcd123...', 'v2.0.0' => 'efgh456...' }
 
 ## underscore 防抖
 
+https://github.com/jashkenas/underscore/blob/master/modules/debounce.js
+
 防抖的原理就是：你尽管触发事件，但是我一定在事件触发 n 秒后才执行，如果你在一个事件触发的 n 秒内又触发了这个事件，那我就以新的事件的时间为准，n 秒后才执行，总之，就是要等你触发完事件 n 秒内不再触发事件，我才执行，真是任性呐!
 
 ```js
@@ -945,6 +945,8 @@ export default function debounce(func, wait, immediate) {
 - 表单验证
 
 ## mitt、tiny-emitter 发布订阅
+
+https://github.com/developit/mitt/blob/main/src/index.ts
 
 在 mitt 这个库中，整体分析起来比较简单，就是 导出了一个 mitt([all])函数，调用该函数返回一个 emitter 对象，该对象包含 all、on(type, handler)、off(type, [handler])和 emit(type, [evt])这几个属性。
 主要实现就是：
@@ -1026,3 +1028,137 @@ export default function mitt<Events extends Record<EventType, unknown>>(
 - 零依赖 ：不依赖任何外部库
 - 小巧高效 ：压缩后仅约 200 字节
 - 防御性编程 ：使用 .slice() 复制数组，避免在触发事件时修改处理器列表导致的问题
+
+## p-limit 限制并发数
+
+https://github.com/sindresorhus/p-limit/blob/main/index.js
+
+是一个用于控制 Promise 并发执行数量的库。
+
+```js
+import Queue from 'yocto-queue' // 引入队列实现
+
+export default function pLimit(concurrency) {
+  validateConcurrency(concurrency) // 验证并发数参数有效性
+
+  const queue = new Queue() // 创建任务队列
+  let activeCount = 0 // 当前正在执行的任务数
+
+  // 执行下一个任务
+  const resumeNext = () => {
+    // 当活跃任务数小于并发限制且队列不为空时，执行下一个任务
+    if (activeCount < concurrency && queue.size > 0) {
+      queue.dequeue()() // 从队列取出一个任务并执行
+      activeCount++ // 增加活跃任务计数
+    }
+  }
+
+  // 任务完成后的处理
+  const next = () => {
+    activeCount-- // 减少活跃任务计数
+    resumeNext() // 尝试执行下一个任务
+  }
+
+  // 执行任务并处理结果
+  const run = async (function_, resolve, arguments_) => {
+    const result = (async () => function_(...arguments_))() // 执行任务函数
+
+    resolve(result) // 立即解析外部 Promise，不等待任务完成
+
+    try {
+      await result // 等待任务真正完成
+    } catch {} // 忽略任务执行中的错误
+
+    next() // 任务结束，触发后续逻辑
+  }
+
+  // 将任务加入队列
+  const enqueue = (function_, resolve, arguments_) => {
+    // 将任务包装在 Promise 中加入队列
+    new Promise((internalResolve) => {
+      queue.enqueue(internalResolve)
+    }).then(run.bind(undefined, function_, resolve, arguments_))
+
+    // 异步检查是否可以立即执行任务
+    ;(async () => {
+      await Promise.resolve() // 等待下一个微任务
+
+      if (activeCount < concurrency) {
+        resumeNext() // 如果有空闲槽位，执行下一个任务
+      }
+    })()
+  }
+
+  // 主函数返回的函数，将任务包装在Promise并加入队列
+  const generator = (function_, ...arguments_) =>
+    new Promise((resolve) => {
+      enqueue(function_, resolve, arguments_)
+    })
+
+  Object.defineProperties(generator, {
+    activeCount: {
+      get: () => activeCount, // 获取当前活跃任务数
+    },
+    pendingCount: {
+      get: () => queue.size, // 获取等待中的任务数
+    },
+    clearQueue: {
+      value() {
+        queue.clear() // 清空队列
+      },
+    },
+    concurrency: {
+      get: () => concurrency, // 获取并发限制
+      set(newConcurrency) {
+        // 动态修改并发限制
+        validateConcurrency(newConcurrency)
+        concurrency = newConcurrency
+
+        queueMicrotask(() => {
+          while (activeCount < concurrency && queue.size > 0) {
+            resumeNext() // 尝试执行更多任务
+          }
+        })
+      },
+    },
+  })
+
+  return generator
+}
+
+// 辅助函数，用于限制特定函数的并发执行
+export function limitFunction(function_, option) {
+  const { concurrency } = option
+  const limit = pLimit(concurrency)
+
+  return (...arguments_) => limit(() => function_(...arguments_))
+}
+
+// 验证并发数参数的有效性
+function validateConcurrency(concurrency) {
+  if (
+    !(
+      (Number.isInteger(concurrency) ||
+        concurrency === Number.POSITIVE_INFINITY) &&
+      concurrency > 0
+    )
+  ) {
+    throw new TypeError('Expected `concurrency` to be a number from 1 and up')
+  }
+}
+```
+
+工作流程：
+
+![123](https://www.mermaidchart.com/raw/322e2898-9fd7-4370-8d3b-39ca955c0254?theme=light&version=v0.1&format=svg)
+
+设计亮点：
+
+- 微任务队列的巧妙使用 ：确保任务状态更新和检查在正确的时机进行
+- 立即解析外部 Promise ：让调用者可以立即获得任务的 Promise，而不必等待任务真正执行
+- 动态调整并发数 ：支持在运行时修改并发限制
+- 状态查询接口 ：提供 activeCount 和 pendingCount 属性查询当前状态
+- 错误隔离 ：一个任务的失败不会影响其他任务的执行
+
+[Node.js 并发能力总结](https://mp.weixin.qq.com/s/6LsPMIHdIOw3KO6F2sgRXg)
+[关于请求并发控制的思考](https://juejin.cn/post/7045274658798567454)
