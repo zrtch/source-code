@@ -1163,3 +1163,104 @@ function validateConcurrency(concurrency) {
 [Node.js 并发能力总结](https://mp.weixin.qq.com/s/6LsPMIHdIOw3KO6F2sgRXg)
 
 [关于请求并发控制的思考](https://juejin.cn/post/7045274658798567454)
+
+## classNames
+
+https://github.com/JedWatson/classnames
+
+classNames 函数可以接受任意数量的参数，包括字符串和对象，并且可以处理动态类名。在 React.js 中，它可以用来简化动态和条件 className 属性的处理。
+
+```js
+const hasOwn = {}.hasOwnProperty
+
+// 这个主函数接收任意数量的参数，遍历每个参数，如果参数有效（非假值），则通过 parseValue 解析参数值，并用 appendClass 将解析结果添加到最终的类名字符串中。
+export default function classNames() {
+  let classes = ''
+
+  for (let i = 0; i < arguments.length; i++) {
+    const arg = arguments[i]
+    if (arg) {
+      classes = appendClass(classes, parseValue(arg))
+    }
+  }
+
+  return classes
+}
+
+function parseValue(arg) {
+  // 字符串 ：直接返回
+  if (typeof arg === 'string') {
+    return arg
+  }
+  // 非对象类型且非字符串 ：返回空字符串
+  if (typeof arg !== 'object') {
+    return ''
+  }
+
+  // 递归调用 classNames ，处理数组中的每个元素
+  if (Array.isArray(arg)) {
+    return classNames.apply(null, arg)
+  }
+
+  // 处理自定义 toString 方法的对象
+  if (
+    arg.toString !== Object.prototype.toString &&
+    !arg.toString.toString().includes('[native code]')
+  ) {
+    return arg.toString()
+  }
+
+  // 普通对象 ：遍历对象的键值对，当值为真时，将键作为类名添加
+  let classes = ''
+  for (const key in arg) {
+    if (hasOwn.call(arg, key) && arg[key]) {
+      classes = appendClass(classes, key)
+    }
+  }
+
+  return classes
+}
+
+// 类名拼接函数:
+// - 如果新类名为空，则返回原类名
+// - 如果原类名为空，则返回新类名
+// - 否则，用空格连接原类名和新类名
+function appendClass(value, newClass) {
+  if (!newClass) {
+    return value
+  }
+
+  return value ? value + ' ' + newClass : newClass
+}
+```
+
+设计亮点：
+
+- 灵活的参数处理 ：可以接受字符串、对象、数组或它们的任意组合
+- 条件类名 ：通过对象的值来决定是否包含某个类名
+- 递归处理 ：能够处理嵌套数组
+- 性能优化 ：使用字符串拼接而非数组操作，减少内存分配
+- 防御性编程 ：处理各种边缘情况，如自定义 toString 方法的对象
+
+实际应用：
+
+```jsx
+import classNames from 'classnames'
+
+function Button({ isActive, isDisabled, className }) {
+  return (
+    <button
+      className={classNames(
+        'button', // 基础类
+        {
+          'button--active': isActive, // 条件类
+          'button--disabled': isDisabled,
+        },
+        className, // 外部传入的类
+      )}
+    >
+      Click me
+    </button>
+  )
+}
+```
