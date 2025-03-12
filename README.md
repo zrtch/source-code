@@ -1,3 +1,14 @@
+- [arrify 转数组](#arrify)
+- [yocto-queue 队列链表](#yocto-queue)
+- [Vue2 工具函数](#vue2-源码方法)
+- [axios 工具函数](#axios)
+- [await-to-js](#await-to-js)
+- [promisify](#promisify)
+- [underscore 防抖](#underscore-防抖)
+- [mitt、tiny-emitter 发布订阅](#mitt、tiny-emitter-发布订阅)
+- [p-limit 限制并发数](#p-limit-限制并发数)
+- [classNames 类名工具](#classnames)
+
 ## arrify
 
 https://github.com/sindresorhus/arrify
@@ -729,7 +740,7 @@ trim('       123 ') // '123'
 
 ## await-to-js
 
-https://github.com/scopsy/await-to-js/blob/master/src/await-to-js.ts
+https://github.com/scopsy/await-to-js/
 
 异步任务处理的方法从最初的回调函数，逐渐发展成为了 Promise，async/await，以及 Generator 函数。每种方法都有其特点，例如 Promise 提供了错误捕获和链式调用，async/await 使得异步代码可以像同步代码一样编写，而 Generator 函数允许异步任务的暂停和恢复。
 
@@ -776,6 +787,8 @@ console.log(data)
 - 支持自定义错误信息扩展
 
 ## promisify
+
+https://github.com/nodejs/node/blob/main/lib/internal/util.js#L428
 
 [utils promisify 文档](https://nodejs.cn/api/util/util_promisify_original.html)。
 
@@ -946,7 +959,7 @@ export default function debounce(func, wait, immediate) {
 
 ## mitt、tiny-emitter 发布订阅
 
-https://github.com/developit/mitt/blob/main/src/index.ts
+https://github.com/developit/mitt/
 
 在 mitt 这个库中，整体分析起来比较简单，就是 导出了一个 mitt([all])函数，调用该函数返回一个 emitter 对象，该对象包含 all、on(type, handler)、off(type, [handler])和 emit(type, [evt])这几个属性。
 主要实现就是：
@@ -1031,7 +1044,7 @@ export default function mitt<Events extends Record<EventType, unknown>>(
 
 ## p-limit 限制并发数
 
-https://github.com/sindresorhus/p-limit/blob/main/index.js
+https://github.com/sindresorhus/p-limit
 
 是一个用于控制 Promise 并发执行数量的库。
 
