@@ -1,18 +1,18 @@
 # 前端优质源码
 
-| 序号 | 名称                                          | 描述                      |
-| :--: | :-------------------------------------------- | :------------------------ |
-|  01  | [arrify](#arrify)                             | 将各种类型转换为数组      |
-|  02  | [yocto-queue](#yocto-queue)                   | 轻量级链表队列实现        |
-|  03  | [Vue2 工具函数](#vue2-源码方法)               | Vue2 常用工具方法集合     |
-|  04  | [axios 工具函数](#axios)                      | axios 请求库工具函数      |
-|  05  | [await-to-js](#await-to-js)                   | 优雅处理 async/await 错误 |
-|  06  | [promisify](#promisify)                       | 回调函数转 Promise        |
-|  07  | [underscore 防抖](#underscore-防抖)           | 函数防抖实现              |
-|  08  | [mitt 发布订阅](#mitt、tiny-emitter-发布订阅) | 极简事件发布订阅          |
-|  09  | [p-limit](#p-limit-限制并发数)                | Promise 并发控制          |
-|  10  | [classNames](#classnames)                     | 类名拼接工具              |
-|  10  | [koa-compose](#koa-compose)                   | 洋葱模型                  |
+| 序号 | 名称                                                | 描述                      |
+| :--: | :-------------------------------------------------- | :------------------------ |
+|  01  | [arrify](#arrify)                                   | 将各种类型转换为数组      |
+|  02  | [yocto-queue](#yocto-queue)                         | 轻量级链表队列实现        |
+|  03  | [Vue2 工具函数](#vue2-源码方法)                     | Vue2 常用工具方法集合     |
+|  04  | [axios 工具函数](#axios)                            | axios 请求库工具函数      |
+|  05  | [await-to-js](#await-to-js)                         | 优雅处理 async/await 错误 |
+|  06  | [promisify](#promisify)                             | 回调函数转 Promise        |
+|  07  | [underscore](#underscore-防抖)                      | 函数防抖实现              |
+|  08  | [mitt,、tiny-emitter](#mitt、tiny-emitter-发布订阅) | 极简事件发布订阅          |
+|  09  | [p-limit](#p-limit-限制并发数)                      | Promise 并发控制          |
+|  10  | [classNames](#classnames)                           | 类名拼接工具              |
+|  10  | [koa-compose](#koa-compose-洋葱模型)                | 洋葱模型                  |
 
 ## arrify
 
@@ -1283,7 +1283,7 @@ function Button({ isActive, isDisabled, className }) {
 }
 ```
 
-## koa-compose 洋葱模型
+## koa-compose-洋葱模型
 
 https://github.com/koajs/compose/blob/master/index.js
 
