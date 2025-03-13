@@ -1,15 +1,18 @@
 # 前端优质源码
 
-1. [arrify 转数组](#arrify)
-2. [yocto-queue 队列链表](#yocto-queue)
-3. [Vue2 工具函数](#vue2-源码方法)
-4. [axios 工具函数](#axios)
-5. [await-to-js](#await-to-js)
-6. [promisify](#promisify)
-7. [underscore 防抖](#underscore-防抖)
-8. [mitt、tiny-emitter 发布订阅](#mitt、tiny-emitter-发布订阅)
-9. [p-limit 限制并发数](#p-limit-限制并发数)
-10. [classNames 类名工具](#classnames)
+| 序号 | 名称                                          | 描述                      |
+| :--: | :-------------------------------------------- | :------------------------ |
+|  01  | [arrify](#arrify)                             | 将各种类型转换为数组      |
+|  02  | [yocto-queue](#yocto-queue)                   | 轻量级链表队列实现        |
+|  03  | [Vue2 工具函数](#vue2-源码方法)               | Vue2 常用工具方法集合     |
+|  04  | [axios 工具函数](#axios)                      | axios 请求库工具函数      |
+|  05  | [await-to-js](#await-to-js)                   | 优雅处理 async/await 错误 |
+|  06  | [promisify](#promisify)                       | 回调函数转 Promise        |
+|  07  | [underscore 防抖](#underscore-防抖)           | 函数防抖实现              |
+|  08  | [mitt 发布订阅](#mitt、tiny-emitter-发布订阅) | 极简事件发布订阅          |
+|  09  | [p-limit](#p-limit-限制并发数)                | Promise 并发控制          |
+|  10  | [classNames](#classnames)                     | 类名拼接工具              |
+|  10  | [koa-compose](#koa-compose 洋葱模型)          |                           |
 
 ## arrify
 
@@ -1279,3 +1282,134 @@ function Button({ isActive, isDisabled, className }) {
   )
 }
 ```
+
+## koa-compose 洋葱模型
+
+https://github.com/koajs/compose/blob/master/index.js
+
+koa-compose 是 Koa 框架中实现洋葱模型的核心代码。compose 函数接收一个中间件数组，返回一个组合后的中间件函数，这个函数能够按照洋葱模型的方式依次执行所有中间件。
+
+```js
+module.exports = compose
+
+/**
+ * Compose `middleware` returning
+ * a fully valid middleware comprised
+ * of all those which are passed.
+ *
+ * @param {Array} middleware
+ * @return {Function}
+ * @api public
+ */
+
+function compose(middleware) {
+  // 传入的 middleware 必须是数组
+  if (!Array.isArray(middleware))
+    throw new TypeError('Middleware stack must be an array!')
+  for (const fn of middleware) {
+    // 数组中的每一项都必须是函数
+    if (typeof fn !== 'function')
+      throw new TypeError('Middleware must be composed of functions!')
+  }
+
+  /**
+   * @param {Object} context
+   * @return {Promise}
+   * @api public
+   */
+
+  // 返回组合后的中间件函数
+  return function (context, next) {
+    // 返回一个接收 context 和可选的 next 参数的函数，这个函数会从第一个中间件开始执行。
+    let index = -1
+    return dispatch(0)
+    // 递归调度函数 dispatch
+    function dispatch(i) {
+      if (i <= index)
+        return Promise.reject(new Error('next() called multiple times'))
+      index = i
+      let fn = middleware[i]
+      if (i === middleware.length) fn = next
+      if (!fn) return Promise.resolve()
+      try {
+        return Promise.resolve(fn(context, dispatch.bind(null, i + 1)))
+      } catch (err) {
+        return Promise.reject(err)
+      }
+    }
+  }
+}
+```
+
+洋葱模型的核心实现：
+
+1. 防止重复调用 ：如果当前索引小于等于上一次执行的索引，说明 next() 被多次调用，抛出错误
+2. 更新索引 ：记录当前执行的中间件索引
+3. 获取当前中间件 ：从数组中取出当前索引对应的中间件函数
+4. 处理最后一个中间件 ：如果已经是最后一个中间件，则使用传入的 next 函数
+5. 处理无中间件情况 ：如果没有中间件函数，返回已解决的 Promise
+6. 执行中间件 ：
+   - 将 context 和下一个中间件的 dispatch 函数传给当前中间件
+   - 确保返回值是 Promise（通过 Promise.resolve 包装）
+   - 捕获同步错误并转换为 rejected Promise
+
+使用示例：
+
+```js
+const Koa = require('koa')
+const compose = require('koa-compose')
+const app = new Koa()
+
+// 中间件1
+async function middleware1(ctx, next) {
+  console.log('1 开始')
+  await next()
+  console.log('1 结束')
+}
+
+// 中间件2
+async function middleware2(ctx, next) {
+  console.log('2 开始')
+  await next()
+  console.log('2 结束')
+}
+
+// 中间件3
+async function middleware3(ctx, next) {
+  console.log('3 开始')
+  await next()
+  console.log('3 结束')
+}
+
+// 组合中间件
+const middlewares = compose([middleware1, middleware2, middleware3])
+
+// 使用组合后的中间件
+app.use(middlewares)
+
+// 输出顺序:
+// 1 开始
+// 2 开始
+// 3 开始
+// 3 结束
+// 2 结束
+// 1 结束
+```
+
+工作原理
+
+1. 请求从最外层中间件进入，穿过所有中间件的"前半部分"到达最内层
+2. 然后从最内层开始，穿过所有中间件的"后半部分"返回
+3. 每个中间件都分为两个阶段：
+
+   - await next() 之前的代码是"前半部分"
+   - await next() 之后的代码是"后半部分"
+
+设计亮点：
+
+1. 在请求处理前执行准备工作
+2. 控制是否继续执行下一个中间件
+3. 在下游中间件执行完毕后执行清理工作
+4. 修改请求和响应对象
+
+这就是 Koa 中间件系统的精髓，通过简洁的设计实现了强大的功能扩展和控制流管理。
