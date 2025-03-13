@@ -12,7 +12,7 @@
 |  08  | [mitt 发布订阅](#mitt、tiny-emitter-发布订阅) | 极简事件发布订阅          |
 |  09  | [p-limit](#p-limit-限制并发数)                | Promise 并发控制          |
 |  10  | [classNames](#classnames)                     | 类名拼接工具              |
-|  10  | [koa-compose](#koa-compose 洋葱模型)          |                           |
+|  10  | [koa-compose](#koa-compose)                   | 洋葱模型                  |
 
 ## arrify
 
