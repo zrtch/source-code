@@ -13,6 +13,7 @@
 |  09  | [p-limit](#p-limit-限制并发数)                      | Promise 并发控制          |
 |  10  | [classNames](#classnames)                           | 类名拼接工具              |
 |  10  | [koa-compose](#koa-compose-洋葱模型)                | 洋葱模型                  |
+|  10  | [element](#element-新建组件)                        | element 新建组件          |
 
 ## arrify
 
@@ -1413,3 +1414,197 @@ app.use(middlewares)
 4. 修改请求和响应对象
 
 这就是 Koa 中间件系统的精髓，通过简洁的设计实现了强大的功能扩展和控制流管理。
+
+## element-新建组件
+
+https://github.com/ElemeFE/element/blob/dev/build/bin/new.js
+
+Element UI 框架中用于自动创建新组件的脚本。它通过命令行工具自动生成组件所需的所有文件和配置，大大简化了组件开发流程。
+
+````js
+'use strict';
+
+console.log();
+process.on('exit', () => {
+  console.log();
+});
+
+if (!process.argv[2]) {
+  console.error('[组件名]必填 - Please enter new component name');
+  process.exit(1);
+}
+
+// 依赖导入与变量初始化
+const path = require('path'); // Node.js 内置模块，用于处理文件路径
+const fs = require('fs'); // Node.js 内置模块，用于文件系统操作
+const fileSave = require('file-save'); // 第三方库，用于保存文件内容
+const uppercamelcase = require('uppercamelcase'); // 第三方库，将短横线命名转换为大驼峰命名
+const componentname = process.argv[2]; // 从命令行获取的组件名（kebab-case，如 date-picker ）
+const chineseName = process.argv[3] || componentname; // 可选的中文名称，如果未提供则使用组件名
+const ComponentName = uppercamelcase(componentname); // 转换为大驼峰命名的组件名（如 DatePicker ）
+const PackagePath = path.resolve(__dirname, '../../packages', componentname); // 组件包的绝对路径，使用 path.resolve 从当前脚本位置计算
+
+// 文件模板定义
+const Files = [
+  {
+    filename: 'index.js',
+    content: `import ${ComponentName} from './src/main';
+
+/* istanbul ignore next */
+${ComponentName}.install = function(Vue) {
+  Vue.component(${ComponentName}.name, ${ComponentName});
+};
+
+export default ${ComponentName};`
+  },
+  {
+    filename: 'src/main.vue',
+    content: `<template>
+  <div class="el-${componentname}"></div>
+</template>
+
+<script>
+export default {
+  name: 'El${ComponentName}'
+};
+</script>`
+  },
+  {
+    filename: path.join('../../examples/docs/zh-CN', `${componentname}.md`),
+    content: `## ${ComponentName} ${chineseName}`
+  },
+  {
+    filename: path.join('../../examples/docs/en-US', `${componentname}.md`),
+    content: `## ${ComponentName}`
+  },
+  {
+    filename: path.join('../../examples/docs/es', `${componentname}.md`),
+    content: `## ${ComponentName}`
+  },
+  {
+    filename: path.join('../../examples/docs/fr-FR', `${componentname}.md`),
+    content: `## ${ComponentName}`
+  },
+  {
+    filename: path.join('../../test/unit/specs', `${componentname}.spec.js`),
+    content: `import { createTest, destroyVM } from '../util';
+import ${ComponentName} from 'packages/${componentname}';
+
+describe('${ComponentName}', () => {
+  let vm;
+  afterEach(() => {
+    destroyVM(vm);
+  });
+
+  it('create', () => {
+    vm = createTest(${ComponentName}, true);
+    expect(vm.$el).to.exist;
+  });
+});
+`
+  },
+  {
+    filename: path.join('../../packages/theme-chalk/src', `${componentname}.scss`),
+    content: `@import "mixins/mixins";
+@import "common/var";
+
+@include b(${componentname}) {
+}`
+  },
+  {
+    filename: path.join('../../types', `${componentname}.d.ts`),
+    content: `import { ElementUIComponent } from './component'
+
+/** ${ComponentName} Component */
+export declare class El${ComponentName} extends ElementUIComponent {
+}`
+  }
+];
+
+// 组件注册与配置更新
+// 添加到 components.json
+const componentsFile = require('../../components.json');
+// 检查组件是否已存在，如果存在则报错并退出
+if (componentsFile[componentname]) {
+  console.error(`${componentname} 已存在.`);
+  process.exit(1);
+}
+// 将新组件添加到配置对象中，键是组件名，值是组件入口文件的相对路径
+componentsFile[componentname] = `./packages/${componentname}/index.js`;
+// 使用 fileSave 将更新后的配置写回
+fileSave(path.join(__dirname, '../../components.json'))
+  .write(JSON.stringify(componentsFile, null, '  '), 'utf8')
+  .end('\n');
+
+// 添加到 index.scss
+const sassPath = path.join(__dirname, '../../packages/theme-chalk/src/index.scss');
+const sassImportText = `${fs.readFileSync(sassPath)}@import "./${componentname}.scss";`;
+fileSave(sassPath)
+  .write(sassImportText, 'utf8')
+  .end('\n');
+
+// 添加到 element-ui.d.ts TypeScript 类型定义更新
+const elementTsPath = path.join(__dirname, '../../types/element-ui.d.ts');
+
+let elementTsText = `${fs.readFileSync(elementTsPath)}
+/** ${ComponentName} Component */
+export class ${ComponentName} extends El${ComponentName} {}`;
+
+const index = elementTsText.indexOf('export') - 1;
+const importString = `import { El${ComponentName} } from './${componentname}'`;
+
+elementTsText = elementTsText.slice(0, index) + importString + '\n' + elementTsText.slice(index);
+
+fileSave(elementTsPath)
+  .write(elementTsText, 'utf8')
+  .end('\n');
+
+// 创建 package
+Files.forEach(file => { // 使用 fileSave 创建文件并写入内容
+  fileSave(path.join(PackagePath, file.filename))
+    .write(file.content, 'utf8')
+    .end('\n');
+});
+
+// 添加到 nav.config.json
+const navConfigFile = require('../../examples/nav.config.json');
+
+Object.keys(navConfigFile).forEach(lang => {
+  let groups = navConfigFile[lang][4].groups;
+  groups[groups.length - 1].list.push({
+    path: `/${componentname}`,
+    title: lang === 'zh-CN' && componentname !== chineseName
+      ? `${ComponentName} ${chineseName}`
+      : ComponentName
+  });
+});
+
+fileSave(path.join(__dirname, '../../examples/nav.config.json'))
+  .write(JSON.stringify(navConfigFile, null, '  '), 'utf8')
+  .end('\n');
+
+console.log('DONE!');
+```
+````
+
+工作流程总结
+
+1. 验证输入 ：确保提供了组件名
+2. 准备变量 ：处理组件名和路径
+3. 定义模板 ：准备所有需要创建的文件模板
+4. 更新配置 ：
+   - 将组件添加到 components.json
+   - 将样式导入添加到 index.scss
+   - 更新 TypeScript 类型定义
+5. 创建文件 ：根据模板创建所有组件文件
+6. 更新导航 ：将组件添加到文档网站导航
+7. 完成 ：提示用户操作完成
+
+设计亮点
+
+1. 模板化 ：使用模板字符串动态生成文件内容，保持一致性
+2. 多语言支持 ：自动为多种语言创建文档模板
+3. 类型安全 ：自动生成 TypeScript 类型定义
+4. 完整集成 ：不仅创建文件，还更新所有相关配置
+5. 错误处理 ：检查组件是否已存在，避免覆盖
+6. 文件格式化 ：确保生成的 JSON 文件格式良好，便于后续手动编辑
