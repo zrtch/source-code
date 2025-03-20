@@ -14,6 +14,7 @@
 |  10  | [classNames](#classnames)                           | 类名拼接工具              |
 |  10  | [koa-compose](#koa-compose-洋葱模型)                | 洋葱模型                  |
 |  10  | [element](#element-新建组件)                        | element 新建组件          |
+|  10  | [tdesign-vue](#tdesign-vue)                         | tdesign-vue 初始化组件    |
 
 ## arrify
 
@@ -1608,3 +1609,211 @@ console.log('DONE!');
 4. 完整集成 ：不仅创建文件，还更新所有相关配置
 5. 错误处理 ：检查组件是否已存在，避免覆盖
 6. 文件格式化 ：确保生成的 JSON 文件格式良好，便于后续手动编辑
+
+## tdesign-vue
+
+https://github.com/Tencent/tdesign-vue/blob/develop/script/init/index.js
+
+TDesign-Vue 组件库中用于初始化新组件的脚本。它提供了一个自动化工具，可以快速创建或删除组件所需的所有文件和配置。
+
+```js
+// 创建组件文件 ：根据模板自动生成组件所需的各种文件
+// 删除组件文件 ：支持删除已创建的组件文件
+// 更新索引文件 ：自动在主索引文件中添加或删除组件的导入和导出
+
+const fs = require('fs')
+const path = require('path')
+const { template } = require('lodash-es')
+const utils = require('../utils')
+const config = require('./config')
+
+const cwdPath = process.cwd()
+
+// 这个函数负责创建文件并写入内容，成功后输出日志信息。
+function createFile(path, data = '', desc) {
+  fs.writeFile(path, data, (err) => {
+    if (err) {
+      utils.log(err, 'error')
+    } else {
+      utils.log(
+        `> ${desc}\n${path} file has been created successfully！`,
+        'success',
+      )
+    }
+  })
+}
+
+// 这个辅助函数将字符串的首字母转为大写，用于生成符合规范的组件名称（如 button → Button ）
+function getFirstLetterUpper(a) {
+  return a[0].toUpperCase() + a.slice(1)
+}
+
+// 这个函数返回组件测试快照文件的配置，用于测试框架（如Jest）的快照测试。
+function getSnapshotFiles(component) {
+  return {
+    [`test/unit/${component}/__snapshots__/`]: {
+      desc: 'snapshot test',
+      files: ['index.test.js.snap', 'demo.test.js.snap'],
+    },
+  }
+}
+
+// 这个函数负责删除组件的所有文件和目录。
+// - 合并常规文件和快照文件的配置
+// - 遍历所有目录
+// - 如果配置中有 deleteFiles 属性，只删除指定的文件
+// - 否则递归删除整个目录
+function deleteComponent(toBeCreatedFiles, component) {
+  const snapShotFiles = getSnapshotFiles(component)
+  const files = Object.assign(toBeCreatedFiles, snapShotFiles)
+  Object.keys(files).forEach((dir) => {
+    const item = files[dir]
+    if (item.deleteFiles && item.deleteFiles.length) {
+      item.deleteFiles.forEach((f) => {
+        fs.existsSync(f) && fs.unlinkSync(f)
+      })
+    } else {
+      utils.deleteFolderRecursive(dir)
+    }
+  })
+  utils.log('All radio files have been removed.', 'success')
+}
+
+// 使用 lodash 的模板引擎处理模板文件，替换其中的变量后创建新文件
+// - 读取模板文件
+// - 使用 lodash 的 template 函数编译模板
+// - 传入组件名称相关的变量
+// - 创建最终的文件
+function outputFileWithTemplate(item, component, desc, _d) {
+  const tplPath = path.resolve(__dirname, `./tpl/${item.template}`)
+  let data = fs.readFileSync(tplPath).toString()
+  const compiled = template(data)
+  data = compiled({
+    component,
+    upperComponent: getFirstLetterUpper(component),
+  })
+  const _f = path.resolve(_d, item.file)
+  createFile(_f, data, desc)
+}
+
+// 这个函数负责创建组件所需的所有文件和目录。
+// - 遍历需要创建的文件配置
+// - 创建必要的目录结构
+// - 对于每个文件，根据其类型：
+//    - 如果是对象且有模板属性，使用模板创建文件
+//    - 否则创建空文件
+function addComponent(toBeCreatedFiles, component) {
+  // At first, we need to create directories for components.
+  Object.keys(toBeCreatedFiles).forEach((dir) => {
+    const _d = path.resolve(cwdPath, dir)
+    fs.mkdir(_d, { recursive: true }, (err) => {
+      if (err) {
+        utils.log(err, 'error')
+        return
+      }
+      console.log(`${_d} directory has been created successfully！`)
+      // Then, we create files for components.
+      const contents = toBeCreatedFiles[dir]
+      contents.files.forEach((item) => {
+        if (typeof item === 'object') {
+          if (item.template) {
+            outputFileWithTemplate(item, component, contents.desc, _d)
+          }
+        } else {
+          const _f = path.resolve(_d, item)
+          createFile(_f, '', contents.desc)
+        }
+      })
+    })
+  })
+}
+
+// 这些函数负责处理组件在主索引文件中的导入和导出。
+
+function getImportStr(upper, component) {
+  return `import ${upper} from './${component}';`
+}
+
+// 通过正则表达式从索引文件中删除组件的导入语句和导出项。
+function deleteComponentFromIndex(component, indexPath) {
+  const upper = getFirstLetterUpper(component)
+  const importStr = `${getImportStr(upper, component)}\n`
+  let data = fs.readFileSync(indexPath).toString()
+  data = data
+    .replace(new RegExp(importStr), () => '')
+    .replace(new RegExp(`  ${upper},\n`), '')
+  fs.writeFile(indexPath, data, (err) => {
+    if (err) {
+      utils.log(err, 'error')
+    } else {
+      utils.log(`${component} has been removed from /src/index.ts`, 'success')
+    }
+  })
+}
+
+function insertComponentToIndex(component, indexPath) {
+  const upper = getFirstLetterUpper(component)
+  // last import line pattern
+  const importPattern = /import.*?;(?=\n\n)/
+  // components pattern
+  const cmpPattern = /(?<=const components = {\n)[.|\s|\S]*?(?=};\n)/g
+  const importPath = getImportStr(upper, component)
+  const desc = '> insert component into index.ts'
+  let data = fs.readFileSync(indexPath).toString()
+  if (data.match(new RegExp(importPath))) {
+    utils.log(`there is already ${component} in /src/index.ts`, 'notice')
+    return
+  }
+  // insert component at last import and component lines.
+  data = data
+    .replace(importPattern, (a) => `${a}\n${importPath}`)
+    .replace(cmpPattern, (a) => `${a}  ${upper},\n`)
+  fs.writeFile(indexPath, data, (err) => {
+    if (err) {
+      utils.log(err, 'error')
+    } else {
+      utils.log(
+        `${desc}\n${component} has been inserted into /src/index.ts`,
+        'success',
+      )
+    }
+  })
+}
+
+function init() {
+  const [component, isDeleted] = process.argv.slice(2)
+  if (!component) {
+    console.error('[组件名]必填 - Please enter new component name')
+    process.exit(1)
+  }
+  const indexPath = path.resolve(cwdPath, 'src/index.ts')
+  const toBeCreatedFiles = config.getToBeCreatedFiles(component)
+  if (isDeleted === 'del') {
+    deleteComponent(toBeCreatedFiles, component)
+    deleteComponentFromIndex(component, indexPath)
+  } else {
+    addComponent(toBeCreatedFiles, component)
+    insertComponentToIndex(component, indexPath)
+  }
+}
+
+init()
+```
+
+设计亮点：
+
+- 模板化 ：使用模板引擎动态生成文件内容，保持一致性
+- 配置驱动 ：通过配置文件定义需要创建的文件结构，易于扩展
+- 双向操作 ：支持创建和删除组件，方便开发和重构
+- 自动集成 ：自动更新索引文件，无需手动修改
+- 错误处理 ：提供友好的错误提示和日志输出
+
+实际应用：
+
+```bash
+# 创建新组件
+npm run init button
+
+# 删除组件
+npm run init button del
+```

@@ -5,7 +5,7 @@
 // import Axios from './components/Axios.vue'
 // import Dedounce from './components/Dedounce.vue'
 // import Mitt from './components/Mitt.vue'
-import Plimit from './components/Plimit.vue'
+// import Plimit from './components/Plimit.vue'
 import ClassNames from './components/ClassNames.vue'
 </script>
 
@@ -15,8 +15,8 @@ import ClassNames from './components/ClassNames.vue'
   <Vue2 />
   <Axios />
   <Dedounce />
-  <Mitt /> -->
-  <Plimit />
+  <Mitt />
+  <Plimit />-->
   <ClassNames />
 </template>
 
