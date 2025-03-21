@@ -12,9 +12,10 @@
 |  08  | [mitt,、tiny-emitter](#mitt、tiny-emitter-发布订阅) | 极简事件发布订阅          |
 |  09  | [p-limit](#p-limit-限制并发数)                      | Promise 并发控制          |
 |  10  | [classNames](#classnames)                           | 类名拼接工具              |
-|  10  | [koa-compose](#koa-compose-洋葱模型)                | 洋葱模型                  |
-|  10  | [element](#element-新建组件)                        | element 新建组件          |
-|  10  | [tdesign-vue](#tdesign-vue)                         | tdesign-vue 初始化组件    |
+|  11  | [koa-compose](#koa-compose-洋葱模型)                | 洋葱模型                  |
+|  12  | [element](#element-新建组件)                        | element 新建组件          |
+|  13  | [tdesign-vue](#tdesign-vue)                         | tdesign-vue 初始化组件    |
+|  14  | [Vue 发布](#vue-release)                            | vuejs 发布流程            |
 
 ## arrify
 
@@ -1670,6 +1671,7 @@ function deleteComponent(toBeCreatedFiles, component) {
     const item = files[dir]
     if (item.deleteFiles && item.deleteFiles.length) {
       item.deleteFiles.forEach((f) => {
+        // 检查文件是否存在并删除文件
         fs.existsSync(f) && fs.unlinkSync(f)
       })
     } else {
@@ -1686,6 +1688,7 @@ function deleteComponent(toBeCreatedFiles, component) {
 // - 创建最终的文件
 function outputFileWithTemplate(item, component, desc, _d) {
   const tplPath = path.resolve(__dirname, `./tpl/${item.template}`)
+  // 用于读取模板文件buffer并转换为字符串
   let data = fs.readFileSync(tplPath).toString()
   const compiled = template(data)
   data = compiled({
@@ -1817,3 +1820,171 @@ npm run init button
 # 删除组件
 npm run init button del
 ```
+
+## vue-release
+
+vue 发布流程是一个完整的自动化发布系统，主要实现以下功能：
+
+1. **版本控制**：自动更新版本号并创建 git 标签
+2. **变更记录**：自动生成和更新 changelog
+3. **包构建**：确保所有包都被正确构建
+4. **发布流程**：支持正式版、预发布版和测试版的发布流程
+5. **多包协调**：处理 monorepo 中多个包的依赖关系和版本同步
+
+https://github.com/vuejs/core/blob/main/scripts/release.js
+
+### 1. 依赖和初始化
+
+```js
+// 导入必要的依赖
+const fs = require('fs')
+const path = require('path')
+const chalk = require('chalk') // 终端彩色输出
+const semver = require('semver') // 语义化版本控制
+const { prompt } = require('enquirer') // 交互式命令行
+const execa = require('execa') // 执行命令行命令
+const { args } = require('minimist')(process.argv.slice(2)) // 解析命令行参数
+
+// 定义包的路径和版本控制相关常量
+const pkgDir = process.cwd()
+const pkgPath = path.resolve(pkgDir, 'package.json')
+const pkg = require(pkgPath)
+const currentVersion = pkg.version
+```
+
+### 2. 版本选择逻辑
+
+```js
+// 预发布标识符，如 alpha, beta, rc 等
+const preId = args.preid || semver.prerelease(currentVersion)?.[0]
+
+// 可选的版本类型
+const versionIncrements = [
+  'patch',
+  'minor',
+  'major',
+  ...(preId ? ['prepatch', 'preminor', 'premajor', 'prerelease'] : []),
+]
+
+// 根据版本类型生成新版本号
+const inc = (i) => semver.inc(currentVersion, i, preId)
+
+// 运行命令行命令的辅助函数
+const run = (bin, args, opts = {}) =>
+  execa(bin, args, { stdio: 'inherit', ...opts })
+const dryRun = args.dry // 是否为演示模式（不实际执行）
+```
+
+### 3. 主要发布流程
+
+```js
+async function main() {
+  // 1. 确定要发布的版本
+  let targetVersion = args._[0]
+
+  if (!targetVersion) {
+    // 显示可选的版本类型供用户选择
+    const { release } = await prompt({
+      type: 'select',
+      name: 'release',
+      message: 'Select release type',
+      choices: versionIncrements
+        .map((i) => `${i} (${inc(i)})`)
+        .concat(['custom']),
+    })
+
+    if (release === 'custom') {
+      // 用户输入自定义版本号
+      const { version } = await prompt({
+        type: 'input',
+        name: 'version',
+        message: 'Input custom version',
+        initial: currentVersion,
+      })
+      targetVersion = version
+    } else {
+      targetVersion = release.match(/\((.*)\)/)[1]
+    }
+  }
+
+  // 2. 确认版本号有效
+  if (!semver.valid(targetVersion)) {
+    throw new Error(`Invalid target version: ${targetVersion}`)
+  }
+
+  // 3. 确认用户是否要继续
+  const { yes } = await prompt({
+    type: 'confirm',
+    name: 'yes',
+    message: `Releasing v${targetVersion}. Confirm?`,
+  })
+
+  if (!yes) {
+    return
+  }
+
+  // 4. 执行构建
+  await run('pnpm', ['build', '--release'])
+
+  // 5. 更新包版本号
+  updatePackage(targetVersion)
+
+  // 6. 生成变更日志
+  await run('pnpm', ['changelog'])
+
+  // 7. 提交变更
+  const { stdout } = await run('git', ['diff'], { stdio: 'pipe' })
+  if (stdout) {
+    await run('git', ['add', '-A'])
+    await run('git', ['commit', '-m', `release: v${targetVersion}`])
+    await run('git', ['tag', `v${targetVersion}`])
+  } else {
+    console.log('No changes to commit.')
+  }
+
+  // 8. 发布到 npm
+  await publishPackage(targetVersion)
+
+  // 9. 推送到远程仓库
+  await run('git', ['push', 'origin', `refs/tags/v${targetVersion}`])
+  await run('git', ['push'])
+}
+```
+
+### 4. 包更新和发布函数
+
+```js
+function updatePackage(version) {
+  // 更新 package.json 中的版本号
+  pkg.version = version
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
+}
+
+async function publishPackage(version) {
+  // 确定发布标签（latest, beta, alpha 等）
+  const publishArgs = ['publish', '--access', 'public']
+  if (args.tag) {
+    publishArgs.push(`--tag`, args.tag)
+  }
+
+  try {
+    // 执行 npm 发布命令
+    await run('npm', publishArgs, {
+      stdio: 'pipe',
+    })
+    console.log(chalk.green(`Successfully published v${version}`))
+  } catch (e) {
+    console.log(chalk.red(`Failed to publish v${version}`))
+    throw e
+  }
+}
+```
+
+设计亮点：
+
+- 交互式体验 ：使用 enquirer 提供友好的命令行交互，让用户可以选择版本类型或输入自定义版本。
+- 语义化版本控制 ：利用 semver 库确保版本号符合语义化版本规范，自动计算下一个版本号。
+- 自动化流程 ：从版本选择、代码构建、更新包信息、生成变更日志到最终发布，整个流程高度自动化。
+- 安全检查 ：在关键步骤加入确认环节，防止意外操作。
+- 灵活配置 ：支持通过命令行参数自定义发布行为，如指定版本、标签或执行演示模式。
+- 错误处理 ：对发布过程中可能出现的错误进行捕获和处理，提供清晰的错误信息。
