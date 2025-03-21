@@ -1823,15 +1823,18 @@ npm run init button del
 
 ## vue-release
 
+https://github.com/vuejs/core/blob/main/scripts/release.js
+
 vue 发布流程是一个完整的自动化发布系统，主要实现以下功能：
 
-1. **版本控制**：自动更新版本号并创建 git 标签
-2. **变更记录**：自动生成和更新 changelog
-3. **包构建**：确保所有包都被正确构建
-4. **发布流程**：支持正式版、预发布版和测试版的发布流程
-5. **多包协调**：处理 monorepo 中多个包的依赖关系和版本同步
-
-https://github.com/vuejs/core/blob/main/scripts/release.js
+- 版本管理和递增
+- 依赖更新
+- 测试和构建
+- 变更日志生成
+- Git 操作
+- 包发布
+- 金丝雀版本支持
+- CI 集成
 
 ### 1. 依赖和初始化
 
@@ -1852,13 +1855,22 @@ const pkg = require(pkgPath)
 const currentVersion = pkg.version
 ```
 
-### 2. 版本选择逻辑
+### 2. 命令行参数解析
+
+脚本使用 parseArgs 解析命令行参数，支持多种选项：
+
+- --preid : 预发布标识符
+- --dry : 干运行模式，不实际执行修改
+- --tag : 发布标签
+- --canary : 金丝雀发布模式
+- --skipBuild , --skipTests , --skipGit , --skipPrompts : 跳过相应步骤
+- --publish , --publishOnly : 控制发布行为
+- --registry : 指定发布注册表
+
+### 3. 版本管理
 
 ```js
-// 预发布标识符，如 alpha, beta, rc 等
-const preId = args.preid || semver.prerelease(currentVersion)?.[0]
-
-// 可选的版本类型
+// 版本递增类型
 const versionIncrements = [
   'patch',
   'minor',
@@ -1866,118 +1878,181 @@ const versionIncrements = [
   ...(preId ? ['prepatch', 'preminor', 'premajor', 'prerelease'] : []),
 ]
 
-// 根据版本类型生成新版本号
-const inc = (i) => semver.inc(currentVersion, i, preId)
-
-// 运行命令行命令的辅助函数
-const run = (bin, args, opts = {}) =>
-  execa(bin, args, { stdio: 'inherit', ...opts })
-const dryRun = args.dry // 是否为演示模式（不实际执行）
+// 版本递增函数
+const inc = (i) =>
+  semver.inc(currentVersion, i, typeof preId === 'string' ? preId : undefined)
 ```
 
-### 3. 主要发布流程
+### 4. 主流程 (main 函数)
+
+1. 检查与远程同步状态 ：
+
+```javascript
+if (!(await isInSyncWithRemote())) {
+  return
+}
+```
+
+2. 确定目标版本 ：
+
+- 从命令行参数获取
+- 金丝雀版本特殊处理
+- 交互式选择版本类型
+- 自定义版本输入
+
+3. 运行测试 ：
+
+```javascript
+await runTestsIfNeeded()
+```
+
+4. 更新依赖版本 ：
+
+```javascript
+updateVersions(
+  targetVersion,
+  isCanary ? renamePackageToCanary : keepThePackageName,
+)
+```
+
+5. 生成变更日志 ：
+
+```javascript
+await run(`pnpm`, ['run', 'changelog'])
+```
+
+6. 更新锁文件 ：
+
+```javascript
+await run(`pnpm`, ['install', '--prefer-offline'])
+```
+
+7. Git 提交 ：
+
+```javascript
+await runIfNotDry('git', ['add', '-A'])
+await runIfNotDry('git', ['commit', '-m', `release: v${targetVersion}`])
+```
+
+8. 构建和发布包 ：
+
+```javascript
+await buildPackages()
+await publishPackages(targetVersion)
+```
+
+9. 推送到 GitHub ：
+
+```javascript
+await runIfNotDry('git', ['tag', `v${targetVersion}`])
+await runIfNotDry('git', ['push', 'origin', `refs/tags/v${targetVersion}`])
+await runIfNotDry('git', ['push'])
+```
+
+### 5. 金丝雀版本处理
+
+金丝雀版本使用特殊的版本号格式： 3.yyyyMMdd.0 或 3.yyyyMMdd.0-tag.0 ，并会重命名包：
 
 ```js
-async function main() {
-  // 1. 确定要发布的版本
-  let targetVersion = args._[0]
-
-  if (!targetVersion) {
-    // 显示可选的版本类型供用户选择
-    const { release } = await prompt({
-      type: 'select',
-      name: 'release',
-      message: 'Select release type',
-      choices: versionIncrements
-        .map((i) => `${i} (${inc(i)})`)
-        .concat(['custom']),
-    })
-
-    if (release === 'custom') {
-      // 用户输入自定义版本号
-      const { version } = await prompt({
-        type: 'input',
-        name: 'version',
-        message: 'Input custom version',
-        initial: currentVersion,
-      })
-      targetVersion = version
-    } else {
-      targetVersion = release.match(/\((.*)\)/)[1]
-    }
+const renamePackageToCanary = (pkgName) => {
+  if (pkgName === 'vue') {
+    return '@vue/canary'
   }
-
-  // 2. 确认版本号有效
-  if (!semver.valid(targetVersion)) {
-    throw new Error(`Invalid target version: ${targetVersion}`)
+  if (isCorePackage(pkgName)) {
+    return `${pkgName}-canary`
   }
+  return pkgName
+}
+```
 
-  // 3. 确认用户是否要继续
-  const { yes } = await prompt({
-    type: 'confirm',
-    name: 'yes',
-    message: `Releasing v${targetVersion}. Confirm?`,
-  })
+### 6. 包发布
 
-  if (!yes) {
+```js
+async function publishPackage(pkgName, version, additionalFlags) {
+  // 跳过标记的包
+  if (skippedPackages.includes(pkgName)) {
     return
   }
 
-  // 4. 执行构建
-  await run('pnpm', ['build', '--release'])
-
-  // 5. 更新包版本号
-  updatePackage(targetVersion)
-
-  // 6. 生成变更日志
-  await run('pnpm', ['changelog'])
-
-  // 7. 提交变更
-  const { stdout } = await run('git', ['diff'], { stdio: 'pipe' })
-  if (stdout) {
-    await run('git', ['add', '-A'])
-    await run('git', ['commit', '-m', `release: v${targetVersion}`])
-    await run('git', ['tag', `v${targetVersion}`])
-  } else {
-    console.log('No changes to commit.')
+  // 确定发布标签
+  let releaseTag = null
+  if (args.tag) {
+    releaseTag = args.tag
+  } else if (version.includes('alpha')) {
+    releaseTag = 'alpha'
+  } else if (version.includes('beta')) {
+    releaseTag = 'beta'
+  } else if (version.includes('rc')) {
+    releaseTag = 'rc'
   }
 
-  // 8. 发布到 npm
-  await publishPackage(targetVersion)
-
-  // 9. 推送到远程仓库
-  await run('git', ['push', 'origin', `refs/tags/v${targetVersion}`])
-  await run('git', ['push'])
+  // 执行发布
+  await run(
+    'pnpm',
+    [
+      'publish',
+      ...(releaseTag ? ['--tag', releaseTag] : []),
+      '--access',
+      'public',
+      ...(args.registry ? ['--registry', args.registry] : []),
+      ...additionalFlags,
+    ],
+    {
+      cwd: getPkgRoot(pkgName),
+      stdio: 'pipe',
+    },
+  )
 }
 ```
 
-### 4. 包更新和发布函数
+### 7. CI 检查
 
 ```js
-function updatePackage(version) {
-  // 更新 package.json 中的版本号
-  pkg.version = version
-  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
-}
-
-async function publishPackage(version) {
-  // 确定发布标签（latest, beta, alpha 等）
-  const publishArgs = ['publish', '--access', 'public']
-  if (args.tag) {
-    publishArgs.push(`--tag`, args.tag)
-  }
-
+async function getCIResult() {
   try {
-    // 执行 npm 发布命令
-    await run('npm', publishArgs, {
-      stdio: 'pipe',
+    const sha = await getSha()
+    const res = await fetch(
+      `https://api.github.com/repos/vuejs/core/actions/runs?head_sha=${sha}` +
+        `&status=success&exclude_pull_requests=true`,
+    )
+    const data = await res.json()
+    return data.workflow_runs.some(({ name, conclusion }) => {
+      return name === 'ci' && conclusion === 'success'
     })
-    console.log(chalk.green(`Successfully published v${version}`))
-  } catch (e) {
-    console.log(chalk.red(`Failed to publish v${version}`))
-    throw e
+  } catch {
+    console.error('Failed to get CI status for current commit.')
+    return false
   }
 }
+```
+
+### 8. 依赖更新
+
+```js
+function updateDeps(pkg, depType, version, getNewPackageName) {
+  const deps = pkg[depType]
+  if (!deps) return
+  Object.keys(deps).forEach((dep) => {
+    if (isCorePackage(dep)) {
+      const newName = getNewPackageName(dep)
+      const newVersion = newName === dep ? version : `npm:${newName}@${version}`
+      deps[dep] = newVersion
+    }
+  })
+}
+```
+
+### 9. 错误处理
+
+```js
+fnToRun().catch((err) => {
+  if (versionUpdated) {
+    // 发布失败时回滚到当前版本
+    updateVersions(currentVersion)
+  }
+  console.error(err)
+  process.exit(1)
+})
 ```
 
 设计亮点：
