@@ -16,6 +16,7 @@
 |  12  | [element](#element-新建组件)                        | element 新建组件          |
 |  13  | [tdesign-vue](#tdesign-vue)                         | tdesign-vue 初始化组件    |
 |  14  | [Vue 发布](#vue-release)                            | vuejs 发布流程            |
+|  15  | [element-plus message](#element-plus-message)       | element-plus message 组件 |
 
 ## arrify
 
@@ -2063,3 +2064,162 @@ fnToRun().catch((err) => {
 - 安全检查 ：在关键步骤加入确认环节，防止意外操作。
 - 灵活配置 ：支持通过命令行参数自定义发布行为，如指定版本、标签或执行演示模式。
 - 错误处理 ：对发布过程中可能出现的错误进行捕获和处理，提供清晰的错误信息。
+
+## element-plus-message
+
+https://github.com/element-plus/element-plus/tree/dev/packages/components/message
+
+Message 组件是一个轻量级的消息提示组件，用于在页面顶部显示全局消息通知。
+
+1. 模板部分解析
+
+```Vue
+<template>
+  <transition
+    :name="ns.b('fade')"
+    @before-leave="onClose"
+    @after-leave="$emit('destroy')"
+  >
+    <!-- 消息容器 -->
+    <div
+      v-show="visible"
+      :id="id"
+      ref="messageRef"
+      :class="[...]"
+      :style="customStyle"
+      role="alert"
+      @mouseenter="clearTimer"
+      @mouseleave="startTimer"
+    >
+      <!-- 重复消息计数徽章 -->
+      <el-badge v-if="repeatNum > 1" ... />
+
+      <!-- 消息图标 -->
+      <el-icon v-if="iconComponent" ... >
+        <component :is="iconComponent" />
+      </el-icon>
+
+      <!-- 消息内容 -->
+      <slot>
+        <p v-if="!dangerouslyUseHTMLString" :class="ns.e('content')">
+          {{ message }}
+        </p>
+        <p v-else :class="ns.e('content')" v-html="message" />
+      </slot>
+
+      <!-- 关闭按钮 -->
+      <el-icon v-if="showClose" :class="ns.e('closeBtn')" @click.stop="close">
+        <Close />
+      </el-icon>
+    </div>
+  </transition>
+</template>
+```
+
+设计亮点
+
+- 过渡动画 ：使用 Vue 的 <transition> 组件实现淡入淡出效果
+- 事件处理 ：
+- @mouseenter="clearTimer" 和 @mouseleave="startTimer" 实现鼠标悬停时暂停自动关闭
+- @before-leave="onClose" 和 @after-leave="$emit('destroy')" 处理组件销毁逻辑
+- 条件渲染 ：根据不同属性条件性显示徽章、图标和关闭按钮
+- 内容插槽 ：提供默认插槽，允许自定义消息内容
+- HTML 内容支持 ：通过 v-html 支持 HTML 内容渲染（但有安全警告）
+
+2. 脚本部分解析
+
+```vue
+<script lang="ts" setup>
+import { computed, onMounted, ref, watch } from 'vue'
+import { useEventListener, useResizeObserver, useTimeoutFn } from '@vueuse/core'
+// 导入依赖...
+
+const props = defineProps(messageProps)
+defineEmits(messageEmits)
+
+const { ns, zIndex } = useGlobalComponentSettings('message')
+const { currentZIndex, nextZIndex } = zIndex
+
+const messageRef = ref<HTMLDivElement>()
+const visible = ref(false)
+const height = ref(0)
+
+let stopTimer: (() => void) | undefined = undefined
+
+// 计算属性...
+const badgeType = computed<BadgeProps['type']>(() =>
+  props.type ? (props.type === 'error' ? 'danger' : props.type) : 'info',
+)
+const typeClass = computed(() => {
+  const type = props.type
+  return { [ns.bm('icon', type)]: type && TypeComponentsMap[type] }
+})
+const iconComponent = computed(
+  () => props.icon || TypeComponentsMap[props.type] || '',
+)
+
+// 位置计算
+const lastOffset = computed(() => getLastOffset(props.id))
+const offset = computed(
+  () => getOffsetOrSpace(props.id, props.offset) + lastOffset.value,
+)
+const bottom = computed((): number => height.value + offset.value)
+const customStyle = computed<CSSProperties>(() => ({
+  top: `${offset.value}px`,
+  zIndex: currentZIndex.value,
+}))
+
+// 定时器管理
+function startTimer() {
+  if (props.duration === 0) return
+  ;({ stop: stopTimer } = useTimeoutFn(() => {
+    close()
+  }, props.duration))
+}
+</script>
+```
+
+核心功能实现：
+
+- 状态管理 ：
+  - visible ref 控制消息的显示/隐藏
+  - height ref 记录消息高度，用于计算位置
+- 自动关闭机制 ：
+  - startTimer 函数使用 useTimeoutFn 创建定时器，在指定时间后关闭消息
+  - clearTimer 函数清除定时器，用于鼠标悬停时暂停自动关闭
+- 位置计算 ：
+  - lastOffset 获取前一个消息的偏移量
+  - offset 计算当前消息的偏移量
+  - bottom 计算消息底部位置，用于后续消息的定位
+- 样式处理 ：
+  - 使用命名空间 ns 生成 BEM 风格的类名
+  - customStyle 计算消息的样式，包括位置和 z-index
+- 类型处理 ：
+  - badgeType 将消息类型转换为徽章类型
+  - typeClass 根据消息类型生成图标类名
+  - iconComponent 根据消息类型或自定义图标确定要显示的图标组件
+
+设计亮点：
+
+- 组合式 API ：使用 Vue 3 的 `<script setup>` 和组合式 API，代码结构清晰
+- VueUse 工具集成 ：
+  - useTimeoutFn 处理定时器逻辑
+  - useEventListener 添加键盘事件监听
+  - useResizeObserver 监听元素尺寸变化
+- 响应式设计 ：
+  - 使用 computed 属性计算依赖于 props 的值
+  - 使用 watch 监听 repeatNum 变化，重置定时器
+- 可访问性 ：
+  - 使用 role="alert" 提高屏幕阅读器兼容性
+  - 支持键盘 ESC 键关闭消息
+- 灵活的配置 ：
+  - 支持多种消息类型（info、success、warning、error）
+  - 支持自定义图标、样式和持续时间
+  - 支持显示关闭按钮和消息居中
+- 消息堆叠 ：
+  - 通过 offset 和 lastOffset 计算消息位置，实现多条消息的堆叠显示
+  - 使用 zIndex 管理消息的层叠顺序
+- 重复消息处理 ：
+  - 使用 repeatNum 显示相同消息的重复次数，避免界面杂乱
+
+Element Plus 的 Message 组件是一个设计精良的全局消息提示组件，它通过巧妙的状态管理、位置计算和过渡动画，实现了简洁而功能丰富的消息提示效果。组件的实现充分利用了 Vue 3 的组合式 API 和响应式系统，代码结构清晰，易于维护和扩展。
