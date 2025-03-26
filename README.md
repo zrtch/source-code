@@ -17,6 +17,7 @@
 |  13  | [tdesign-vue](#tdesign-vue)                         | tdesign-vue 初始化组件    |
 |  14  | [Vue 发布](#vue-release)                            | vuejs 发布流程            |
 |  15  | [element-plus message](#element-plus-message)       | element-plus message 组件 |
+|  15  | [js-cookie](#js-cookie)                             | Cookie 管理解决方案       |
 
 ## arrify
 
@@ -2223,3 +2224,136 @@ function startTimer() {
   - 使用 repeatNum 显示相同消息的重复次数，避免界面杂乱
 
 Element Plus 的 Message 组件是一个设计精良的全局消息提示组件，它通过巧妙的状态管理、位置计算和过渡动画，实现了简洁而功能丰富的消息提示效果。组件的实现充分利用了 Vue 3 的组合式 API 和响应式系统，代码结构清晰，易于维护和扩展。
+
+## js-cookie
+
+https://github.com/js-cookie/js-cookie
+
+这个库提供了一个完整的 Cookie 管理解决方案，支持设置、获取和删除 Cookie，以及高级特性如自定义转换器和属性配置。它的设计遵循了现代 JavaScript 最佳实践，并考虑到了安全性和兼容性问题
+
+```js
+import assign from './assign.mjs'
+import defaultConverter from './converter.mjs'
+
+// 初始化函数
+// converter：用于处理Cookie值的转换器对象
+// defaultAttributes：默认的Cookie属性配置
+function init(converter, defaultAttributes) {
+  function set(name, value, attributes) {
+    // 检查环境是否支持Cookie
+    if (typeof document === 'undefined') {
+      return
+    }
+
+    attributes = assign({}, defaultAttributes, attributes)
+
+    // 处理过期时间
+    if (typeof attributes.expires === 'number') {
+      attributes.expires = new Date(Date.now() + attributes.expires * 864e5)
+    }
+    if (attributes.expires) {
+      attributes.expires = attributes.expires.toUTCString()
+    }
+
+    // 处理名称编码
+    name = encodeURIComponent(name)
+      .replace(/%(2[346B]|5E|60|7C)/g, decodeURIComponent)
+      .replace(/[()]/g, escape)
+
+    // 构建属性字符串
+    var stringifiedAttributes = ''
+    for (var attributeName in attributes) {
+      if (!attributes[attributeName]) {
+        continue
+      }
+
+      stringifiedAttributes += '; ' + attributeName
+
+      if (attributes[attributeName] === true) {
+        continue
+      }
+
+      // Considers RFC 6265 section 5.2:
+      // ...
+      // 3.  If the remaining unparsed-attributes contains a %x3B (";")
+      //     character:
+      // Consume the characters of the unparsed-attributes up to,
+      // not including, the first %x3B (";") character.
+      // ...
+      stringifiedAttributes += '=' + attributes[attributeName].split(';')[0]
+    }
+
+    return (document.cookie =
+      name + '=' + converter.write(value, name) + stringifiedAttributes)
+  }
+
+  // 获取Cookie函数
+  function get(name) {
+    // 检查环境和输入参数
+    if (typeof document === 'undefined' || (arguments.length && !name)) {
+      return
+    }
+
+    // 处理Cookie字符串
+    var cookies = document.cookie ? document.cookie.split('; ') : []
+    var jar = {}
+    for (var i = 0; i < cookies.length; i++) {
+      var parts = cookies[i].split('=')
+      var value = parts.slice(1).join('=')
+
+      try {
+        var found = decodeURIComponent(parts[0])
+        if (!(found in jar)) jar[found] = converter.read(value, found)
+        if (name === found) {
+          break
+        }
+      } catch {
+        // Do nothing...
+      }
+    }
+
+    return name ? jar[name] : jar
+  }
+
+  return Object.create(
+    {
+      set,
+      get,
+      remove: function (name, attributes) {
+        set(
+          name,
+          '',
+          assign({}, attributes, {
+            expires: -1,
+          }),
+        )
+      },
+      withAttributes: function (attributes) {
+        return init(this.converter, assign({}, this.attributes, attributes))
+      },
+      withConverter: function (converter) {
+        return init(assign({}, this.converter, converter), this.attributes)
+      },
+    },
+    {
+      attributes: { value: Object.freeze(defaultAttributes) },
+      converter: { value: Object.freeze(converter) },
+    },
+  )
+}
+
+export default init(defaultConverter, { path: '/' })
+```
+
+- 辅助方法
+
+  - remove : 通过设置过期时间为过去来删除 cookie
+  - withAttributes : 创建新实例并合并属性
+  - withConverter : 创建新实例并使用自定义转换器
+
+- 特点
+
+  - 使用 Object.create 创建对象，提供更好的封装
+  - 使用 Object.freeze 防止属性被修改
+  - 支持自定义转换器和属性
+  - 处理了各种边界情况（如无效 cookie、编码问题等）
