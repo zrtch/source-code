@@ -17,7 +17,8 @@
 |  13  | [tdesign-vue](#tdesign-vue)                         | tdesign-vue 初始化组件    |
 |  14  | [Vue 发布](#vue-release)                            | vuejs 发布流程            |
 |  15  | [element-plus message](#element-plus-message)       | element-plus message 组件 |
-|  15  | [js-cookie](#js-cookie)                             | Cookie 管理解决方案       |
+|  16  | [js-cookie](#js-cookie)                             | Cookie 管理解决方案       |
+|  17  | [only-allow](#only-allow)                           | 统一规范团队包管理器      |
 
 ## arrify
 
@@ -2357,3 +2358,191 @@ export default init(defaultConverter, { path: '/' })
   - 使用 Object.freeze 防止属性被修改
   - 支持自定义转换器和属性
   - 处理了各种边界情况（如无效 cookie、编码问题等）
+
+cookie、localstorage、sessionStorage 的区别
+
+- cookie
+
+  - 最早的 Web 存储机制 geeksforgeeks.org
+  - 支持安全属性：
+    - Secure：仅在 HTTPS 下传输
+    - HttpOnly：防止 JavaScript 访问
+    - SameSite：控制跨站请求
+  - 使用场景：
+    - 需要服务器验证的数据
+    - 需要在请求中自动发送的信息
+    - 短期会话状态管理
+
+- localStorage
+
+  - HTML5 引入的现代存储机制
+  - 特点：
+    - 数据永久保存，除非手动清除
+    - 存储容量较大（5-10MB）
+    - 同源策略限制
+    - 支持字符串存储，对象需要 JSON 转换
+  - 使用场景：
+    - 长期保存的用户偏好设置
+    - 离线数据缓存
+    - 不需要服务器交互的持久化数据
+
+- sessionStorage
+  - HTML5 引入的会话级存储机制
+  - 特点：
+    - 数据只在当前会话（标签页）有效
+    - 页面刷新时数据保留
+    - 关闭标签页或窗口后数据清除
+    - 适合临时存储会话相关数据
+  - 使用场景：
+    - 临时数据存储，如表单输入
+    - 标签页间的临时状态管理
+    - 购物车等临时存储需求
+
+## only-allow
+
+https://github.com/pnpm/only-allow/blob/master/bin.js
+
+only-allow 是一个用于统一团队包管理器的工具，通过在项目中强制使用指定的包管理器来保持一致性。
+
+### 1. 核心功能
+
+- 检测当前使用的包管理器
+- 验证是否符合项目指定的包管理器
+- 提供友好的错误提示和安装指引
+- 支持多种主流包管理器（npm、cnpm、pnpm、yarn、bun）
+
+```js
+#!/usr/bin/env node
+const whichPMRuns = require('which-pm-runs')
+const availablePMList = ['npm', 'cnpm', 'pnpm', 'yarn', 'bun'] // 支持的包管理器列表
+
+// 创建一个漂亮的边框框住错误消息，使用了 ANSI 转义码来添加颜色。
+function box(s) {
+  const lines = s.trim().split('\n') // 将输入文本分割成行
+  const width = lines.reduce((a, b) => Math.max(a, b.length), 0) // 计算最大行宽
+  const surround = (x) => '║   \x1b[0m' + x.padEnd(width) + '\x1b[31m   ║' // 添加边框
+  const bar = '═'.repeat(width) // 生成上下边框
+  const top = '\x1b[31m╔═══' + bar + '═══╗' // 顶部边框
+  const pad = surround('') // 空行
+  const bottom = '╚═══' + bar + '═══╝\x1b[0m' // 底部边框
+  return [top, pad, ...lines.map(surround), pad, bottom].join('\n') // 组合所有部分
+}
+
+const argv = process.argv.slice(2) // 获取命令行参数
+if (argv.length === 0) {
+  // 检查是否提供了包管理器参数
+  console.log(
+    `Please specify the wanted package manager: only-allow <${availablePMList.join(
+      '|',
+    )}>`,
+  )
+  process.exit(1)
+}
+
+const wantedPM = argv[0] // 获取指定的包管理器
+if (!availablePMList.includes(wantedPM)) {
+  // 验证包管理器是否支持
+  const pmStr = `${availablePMList.slice(0, -1).join(', ')} or ${
+    availablePMList[availablePMList.length - 1]
+  }`
+  console.log(
+    `"${wantedPM}" is not a valid package manager. Available package managers are: ${pmStr}.`,
+  )
+  process.exit(1)
+}
+
+// 环境检查
+const usedPM = whichPMRuns() // 获取当前使用的包管理器
+const cwd = process.env.INIT_CWD || process.cwd() // 获取当前工作目录
+const isInstalledAsDependency = cwd.includes('node_modules') // 检查是否作为依赖安装
+
+// 包管理器验证和提示
+if (usedPM && usedPM.name !== wantedPM && !isInstalledAsDependency) {
+  switch (wantedPM) {
+    case 'npm':
+      console.log(box('Use "npm install" for installation in this project'))
+      break
+    case 'cnpm':
+      console.log(box('Use "cnpm install" for installation in this project'))
+      break
+    case 'pnpm':
+      console.log(
+        box(`Use "pnpm install" for installation in this project.
+
+If you don't have pnpm, install it via "npm i -g pnpm".
+For more details, go to https://pnpm.io/`),
+      )
+      break
+    case 'yarn':
+      console.log(
+        box(`Use "yarn" for installation in this project.
+
+If you don't have Yarn, install it via "npm i -g yarn".
+For more details, go to https://yarnpkg.com/`),
+      )
+      break
+
+    case 'bun':
+      console.log(
+        box(`Use "bun install" for installation in this project.
+
+If you don't have Bun, go to https://bun.sh/docs/installation and find installation method that suits your environment.`),
+      )
+      break
+  }
+  process.exit(1)
+}
+```
+
+### 3. 设计亮点
+
+1. 用户友好性 ：
+
+   - 使用美化的边框输出错误信息
+   - 提供清晰的安装指引
+   - 支持多种包管理器
+
+2. 健壮性 ：
+
+   - 完善的参数验证
+   - 环境检查
+   - 优雅的错误处理
+
+3. 可扩展性 ：
+
+   - 易于添加新的包管理器支持
+   - 模块化的设计
+
+4. 安全性 ：
+
+   - 防止在 node_modules 中运行时报错
+   - 使用 process.exit(1) 确保错误状态正确传递
+
+实际应用：
+
+```json
+{
+  "scripts": {
+    "preinstall": "npx only-allow pnpm"
+  }
+}
+```
+
+最佳实践：
+
+- 团队规范 ：
+
+  - 在项目初始化时就配置好包管理器限制
+  - 在团队文档中说明包管理器的选择原因
+  - 提供包管理器的安装和使用指南
+
+- 错误处理 ：
+
+  - 为团队成员提供清晰的错误解决方案
+  - 在 CI/CD 流程中集成包管理器检查
+  - 确保所有环境使用统一的包管理器
+
+- 维护建议 ：
+  - 定期更新支持的包管理器版本
+  - 监控和处理包管理器相关的问题
+  - 收集团队反馈持续改进
