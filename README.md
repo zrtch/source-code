@@ -2661,3 +2661,82 @@ proxy.w = 4 // 输出：修改 w
 proxy.e.d // 输出：读取 e，读取 d
 proxy.e.d = 5 // 输出：读取 e，修改 d
 ```
+
+## dotenv
+
+dotenv 是一个零依赖的环境变量加载工具，它能将 `.env` 文件中的环境变量自动加载到 `process.env` 中。
+
+### 1. 核心原理
+
+- 📖 读取 `.env` 文件内容（使用 `fs.readFileSync`）
+- 🔄 解析文件内容为键值对对象
+- 📥 将解析结果写入 `process.env`
+- ⚡ 支持自定义路径和编码方式
+
+![dotenv](./public/dotenv.png)
+
+### 2. 代码实现
+
+```js
+const fs = require('fs')
+const path = require('path')
+const os = require('os')
+
+// 调试日志函数
+function log(message) {
+  console.log(`[dotenv][DEBUG] ${message}`)
+}
+
+// 解析 .env 文件内容为对象
+function parse(src) {
+  const obj = {}
+  src
+    .toString()
+    .split('\n')
+    .forEach(function (line) {
+      if (!line || line.startsWith('#')) return // 跳过空行和注释
+      const keyValueArr = line.split('=')
+      const key = keyValueArr[0]?.trim()
+      const val = keyValueArr[1]?.trim() || ''
+      if (key) obj[key] = val
+    })
+  return obj
+}
+
+// 解析路径中的 home 目录
+function resolveHome(envPath) {
+  return envPath[0] === '~'
+    ? path.join(os.homedir(), envPath.slice(1))
+    : envPath
+}
+
+// 主配置函数
+function config(options = {}) {
+  const { path: optionsPath, encoding = 'utf8', debug = false } = options
+
+  const dotenvPath = optionsPath
+    ? resolveHome(optionsPath)
+    : path.resolve(process.cwd(), '.env')
+
+  try {
+    const parsed = parse(fs.readFileSync(dotenvPath, { encoding }))
+
+    // 将解析结果写入 process.env
+    Object.keys(parsed).forEach((key) => {
+      if (!Object.prototype.hasOwnProperty.call(process.env, key)) {
+        process.env[key] = parsed[key]
+      } else if (debug) {
+        log(
+          `"${key}" is already defined in \`process.env\` and will not be overwritten`,
+        )
+      }
+    })
+
+    return parsed
+  } catch (e) {
+    return { error: e }
+  }
+}
+
+module.exports = { config, parse }
+```
