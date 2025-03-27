@@ -19,6 +19,7 @@
 |  15  | [element-plus message](#element-plus-message)       | element-plus message 组件 |
 |  16  | [js-cookie](#js-cookie)                             | Cookie 管理解决方案       |
 |  17  | [only-allow](#only-allow)                           | 统一规范团队包管理器      |
+|  18  | [Vue2/3 响应式](#vue-reactive)                      | Vue2 / Vue3 响应式原理    |
 
 ## arrify
 
@@ -2546,3 +2547,117 @@ If you don't have Bun, go to https://bun.sh/docs/installation and find installat
   - 定期更新支持的包管理器版本
   - 监控和处理包管理器相关的问题
   - 收集团队反馈持续改进
+
+## vue-reactive
+
+vue2 响应式原理：
+
+Vue2 通过 `Object.defineProperty` 实现数据劫持，为每个属性定义 getter 和 setter。
+
+- 在 getter 中收集依赖
+- 在 setter 中触发更新
+- 支持深层对象响应式
+- 无法检测对象属性的添加和删除
+- 无法直接监听数组索引和长度变化
+
+```js
+const obj = {
+  a: 1,
+  b: 2,
+  c: {
+    d: 3,
+  },
+}
+
+function isObject(obj) {
+  return typeof obj === 'object' && obj !== null
+}
+
+function Observe(obj) {
+  if (!isObject(obj)) {
+    return
+  }
+  // 遍历对象的所有属性
+  for (let k in obj) {
+    let v = obj[k]
+    // 递归监听嵌套对象
+    if (isObject(v)) {
+      Observe(v)
+    },
+    Object.defineProperty(obj, k {
+      get() {
+        console.log('读取', k)
+        return v
+      },
+      set(val) {
+        if (val === v) {
+          return
+        }
+        v = val
+        console.log('修改', k)
+      },
+    })
+  }
+}
+
+Observe(obj)
+obj.a // 将正确打印：读取 a
+obj.b = 123 // 将正确打印：修改 b
+obj.c.d // 将正确打印：读取 c，读取 d
+```
+
+vue3 响应式原理：
+
+Vue3 使用 ES6 的 Proxy 重写了响应式系统，提供了更强大和灵活的数据监听能力。
+
+- 可以监听整个对象而不是属性
+- 支持动态属性的添加和删除
+- 支持数组的索引和长度修改
+- 性能更好（不需要递归遍历）
+- 支持更多的拦截操作
+
+```js
+const obj3 = {
+  q: 1,
+  w: 2,
+  e: {
+    d: 3,
+  },
+}
+
+// 创建深层响应式代理的函数
+function reactive(target) {
+  if (!isObject(target)) {
+    return target
+  }
+
+  const proxy = new Proxy(target, {
+    get(target, key) {
+      console.log('读取', key)
+      // 使用 Reflect.get 更规范地获取属性值
+      const result = Reflect.get(target, key)
+      // 递归处理嵌套对象
+      return isObject(result) ? reactive(result) : result
+    },
+    set(target, key, val) {
+      console.log('修改', key)
+      if (val === target[key]) {
+        return true
+      }
+      // 使用 Reflect.set 设置属性值
+      const result = Reflect.set(target, key, val)
+      return result
+    },
+  })
+
+  return proxy
+}
+
+const proxy = reactive(obj3)
+
+// 测试
+proxy.q // 输出：读取 q
+proxy.w = 4 // 输出：修改 w
+proxy.e.d // 输出：读取 e，读取 d
+proxy.e.d = 5 // 输出：读取 e，修改 d
+```
