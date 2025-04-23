@@ -7,7 +7,8 @@
 // import Mitt from './components/Mitt.vue'
 // import Plimit from './components/Plimit.vue'
 // import ClassNames from './components/ClassNames.vue'
-import Vue3 from './components/Vue3.vue'
+// import Vue3 from './components/Vue3.vue'
+import Functions from './components/Functions.vue'
 </script>
 
 <template>
@@ -18,9 +19,11 @@ import Vue3 from './components/Vue3.vue'
   <Dedounce />
   <Mitt />
   <Plimit />
-  <ClassNames /> -->
-
+  <ClassNames /> 
   <Vue3 />
+  -->
+
+  <Functions />
 </template>
 
 <style scoped></style>
