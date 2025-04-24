@@ -44,6 +44,19 @@ function handleClick1() {
 }
 // 创建节流版本的函数
 const throttleClick = throttle(handleClick1, 2000)
+
+// 变量提升
+var x = 10
+function test() {
+  console.log(x) // undefined
+  // console.log(y)  // 报错ReferenceError: Cannot access 'y' before initialization
+  var x = 5
+  let y = 6
+}
+test()
+
+// 1. 如果有 var 关键字，在这个作用域下面的所有定义var关键字，会产生变量提升，要用话别在声明前使用
+// 2. let 不会有变量提升
 </script>
 
 <template>
