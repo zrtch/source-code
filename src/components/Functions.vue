@@ -46,6 +46,8 @@ function handleClick1() {
 const throttleClick = throttle(handleClick1, 2000)
 
 // 变量提升
+// 1. 如果有 var 关键字，在这个作用域下面的所有定义var关键字，会产生变量提升，要用话别在声明前使用
+// 2. let 不会有变量提升
 var x = 10
 function test() {
   console.log(x) // undefined
@@ -55,8 +57,44 @@ function test() {
 }
 test()
 
-// 1. 如果有 var 关键字，在这个作用域下面的所有定义var关键字，会产生变量提升，要用话别在声明前使用
-// 2. let 不会有变量提升
+// 深拷贝
+function deepClone(obj) {
+  if (typeof obj !== 'object' || obj === null) {
+    return obj
+  }
+  let result
+  if (Array.isArray(obj)) {
+    result = []
+  } else {
+    result = {}
+  }
+  for (let key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      result[key] = deepClone(obj[key])
+    }
+  }
+  return result
+}
+const obj = deepClone({
+  name: '张三',
+  age: 18,
+})
+console.log(obj)
+
+const obj1 = JSON.parse(
+  JSON.stringify({
+    name: '张三',
+    age: 18,
+  }),
+)
+console.log(obj1)
+
+// 浅拷贝
+const obj2 = { name: '李四', age: 18 }
+const obj3 = Object.assign({}, obj2)
+const obj4 = { ...obj2 }
+console.log('🤩 obj3:', obj3)
+console.log('🤩 obj4:', obj4)
 </script>
 
 <template>
