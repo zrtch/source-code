@@ -90,11 +90,62 @@ const obj1 = JSON.parse(
 console.log(obj1)
 
 // 浅拷贝
-const obj2 = { name: '李四', age: 18 }
-const obj3 = Object.assign({}, obj2)
-const obj4 = { ...obj2 }
-console.log('🤩 obj3:', obj3)
-console.log('🤩 obj4:', obj4)
+const obj2 = {
+  a: 1,
+  b: {
+    c: 2,
+  },
+}
+let obj3 = Object.assign({}, obj2)
+obj3.b.c = 3
+console.log(obj2.b.c) // 3 说明是浅拷贝，obj2.b.c也被修改了
+
+// 闭包
+function closure() {
+  let a = 0
+  return function () {
+    console.log(a)
+  }
+}
+const fn = closure()
+fn()
+
+// 数据封装和私有变量
+function createCounter() {
+  let count = 10
+  return {
+    increment() {
+      count++
+    },
+    getCount() {
+      return count
+    },
+  }
+}
+const counter = createCounter()
+counter.increment()
+console.log(counter.getCount()) // 11
+
+// 函数工厂
+function makeMultiplier(x) {
+  return function (y) {
+    return x * y
+  }
+}
+const double = makeMultiplier(2)
+console.log(double(5)) // 10
+
+// 模块化模式
+// const module = (function () {
+//   let private = 'private data'
+//   return {
+//     getPrivate: function () {
+//       return private
+//     },
+//   }
+// })()
+// console.log(module.getPrivate()) // 输出: "private data"
+// console.log(module.private) // 输出: undefined (无法直接访问)
 </script>
 
 <template>
